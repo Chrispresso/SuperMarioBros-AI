@@ -10,13 +10,20 @@ class Tile(Enum):
     EMPTY = 0
 
 @unique
-class Enemy(Enum):
-    GREEN_KOOPA = 0x00
-    RED_KOOPA   = 0x01
-    GOOMBA      = 0x06
+class EnemyType(Enum):
+    Green_Koopa = 0x00
+    Red_Koopa   = 0x01
+    Goomba      = 0x06
 
 Shape = namedtuple('Shape', ['width', 'height'])
 Point = namedtuple('Point', ['x', 'y'])
+
+class Enemy(object):
+    def __init__(self, enemy_id: int, location: Point):
+        enemy_type = EnemyType(enemy_id)
+        self.type = EnemyType(enemy_id)
+        self.location = location
+
 
 
 class SMB(object):
@@ -25,12 +32,17 @@ class SMB(object):
     MAX_NUM_ENEMIES = 5
     PAGE_SIZE = 256
     NUM_BLOCKS = 8
-    RESOLUTION = (256, 240)
+    RESOLUTION = Shape(256, 240)
     NUM_TILES = 416  # 0x69f - 0x500 + 1
     NUM_SCREEN_PAGES = 2
     TOTAL_RAM = NUM_BLOCKS * PAGE_SIZE
 
     sprite = Shape(width=16, height=16)
+    resolution = Shape(256, 240)
+    status_bar = Shape(width=resolution.width, height=2*sprite.height)
+
+    xbins = list(range(16, resolution.width, 16))
+    ybins = list(range(16, resolution.height, 16))
 
 
     @unique
@@ -49,44 +61,109 @@ class SMB(object):
 
         Player_X_Position_Screen_Offset = 0x3AD
         Player_Y_Position_Screen_Offset = 0x3B8
+        Enemy_X_Position_Screen_Offset = 0x3AE
+
 
     def read_byte(cls, ram: np.ndarray, location: int):
         pass
 
+    @classmethod
     def get_enemy_locations(cls, ram: np.ndarray):
         # We only care about enemies that are drawn. Others may?? exist
         # in memory, but if they aren't on the screen, they can't hurt us.
         enemies = [None for _ in range(cls.MAX_NUM_ENEMIES)]
 
         for enemy_num in range(cls.MAX_NUM_ENEMIES):
-            enemy = ram[cls.RAMLocations.Enemy_Drawn + enemy_num]
+            enemy = ram[cls.RAMLocations.Enemy_Drawn.value + enemy_num]
             # Is there an enemy 1/0?
             if enemy:
                 # Get the enemy X location.
-                x_pos_level = ram[cls.RAMLocations.Enemy_X_Position_In_Level + enemy_num]
-                x_pos_screen = ram[cls.RAMLocations.Enemy_X_Position_On_Screen + enemy_num]
+                x_pos_level = ram[cls.RAMLocations.Enemy_X_Position_In_Level.value + enemy_num]
+                x_pos_screen = ram[cls.RAMLocations.Enemy_X_Position_On_Screen.value + enemy_num]
                 enemy_loc_x = (x_pos_level * 0x100) + x_pos_screen
-
+                enemy_loc_x = ram[cls.RAMLocations.Enemy_X_Position_Screen_Offset.value]
                 # Get the enemy Y location.
-                enemy_loc_y = ram[cls.RAMLocations.Enemy_Y_Position_On_Screen + enemy_num]
+                enemy_loc_y = ram[cls.RAMLocations.Enemy_Y_Position_On_Screen.value + enemy_num]
+                # Set location
+                location = Point(enemy_loc_x, enemy_loc_y)
 
-    def get_tiles_on_screen(cls, ram: np.ndarray):
-        # First we figure out where Mario is on the screen
-        mario = cls.get_mario_location(ram)
+                # Grab the id
+                enemy_id = ram[cls.RAMLocations.Enemy_Type.value + enemy_num]
+                # Create enemy
+                e = Enemy(enemy_id, location)
 
+                enemies[enemy_num] = e
+
+        return enemies
+
+    @classmethod
     def get_mario_location_in_level(cls, ram: np.ndarray) -> Point:
-        mario_x = ram[cls.RAMLocations.Player_X_Postion_In_Level] * 256 + ram[cls.RAMLocations.Player_X_Position_On_Screen]
-        mario_y = ram[0xce] * ram[0xb5] + cls.sprite.height
+        mario_x = ram[cls.RAMLocations.Player_X_Postion_In_Level.value] * 256 + ram[cls.RAMLocations.Player_X_Position_On_Screen.value]
+        mario_y = ram[0xce] * ram[0xb5]
         return Point(mario_x, mario_y)
 
-    def get_tile_type(cls, ram:np.ndarray, delta_x: int, delta_y: int):
-        mario = cls.get_mario_location_in_level(ram)
-        x = mario.x + delta_x + cls.sprite.width//2
-        y = mario.y + delta_y - cls.sprite.height
+    @classmethod
+    def get_tile_type(cls, ram:np.ndarray, delta_x: int, delta_y: int, mario: Point):
+        x = mario.x + delta_x + 1 # @TODO maybe +1 or +4. Half seems to mess up hitboxes sometimes
+        y = mario.y + delta_y + cls.sprite.height
 
         # Tile locations have two pages. Determine which page we are in
         page = (x // 256) % 2
         # Figure out where in the page we are
         sub_page_x = (x % 256) // 16
-        sub_page_y = (y - 32) // 16  # The PPU is not part of the world, coins, etc
+        sub_page_y = (y - 32) // 16  # The PPU is not part of the world, coins, etc (status bar at top)
         addr = 0x500 + page*208 + sub_page_y*16 + sub_page_x
+        return ram[addr]
+
+    @classmethod
+    def get_tile_loc(cls, x, y):
+        y = y % cls.resolution.height
+        x = x % cls.resolution.width
+        y = (y - cls.status_bar.height) // cls.sprite.height
+        x = x // cls.sprite.width
+        return Point(x, y)
+
+    # @classmethod
+    # def get_tile_location(cls, ram: np.ndarray, )
+
+    @classmethod
+    def get_tiles_on_screen(cls, ram: np.ndarray):
+        mario = cls.get_mario_location_in_level(ram)
+
+        # How many tiles above and below mario are there?
+        tiles_down = (cls.resolution.height - cls.status_bar.height - mario.y) // 16
+        tiles_up = (13 - 1 - tiles_down)
+
+        # How many tiles to the left and right of mario are there?
+        x_loc = ram[cls.RAMLocations.Player_X_Position_Screen_Offset.value]
+        tiles_left = x_loc // 16
+        tiles_right = 16 - 1 - tiles_left
+
+        tiles = np.empty((13,16), np.uint8)
+        tiles.fill(0xFF)
+
+        # Grab enemies
+        enemies = cls.get_enemy_locations(ram)
+
+        for y in range(-tiles_up, tiles_down+1):
+            for x in range(-tiles_left, tiles_right+1):
+                dy = y*16
+                dx = x*16
+                tiles[y+tiles_up, x+tiles_left] = cls.get_tile_type(ram, dx, dy, mario)
+                # If dx and dy are both 0, this is where mario is
+                # @TODO: I think this changes for when mario is big. He might take up 2 sprites then
+                if dx == dy == 0:
+                    tiles[y+tiles_up, x+tiles_left]= 0xAA
+
+        for enemy in enemies:
+            if enemy:
+                ex = enemy.location.x
+                if ex >= cls.resolution.width:
+                    continue
+                ey = enemy.location.y + 8
+                ybin = np.digitize(ey, cls.ybins) - 2
+                xbin = np.digitize(ex, xbins)
+                tiles[ybin, xbin] = enemy.type.value
+
+
+        return tiles
