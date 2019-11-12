@@ -15,6 +15,10 @@ class EnemyType(Enum):
     Red_Koopa   = 0x01
     Goomba      = 0x06
 
+@unique
+class StaticTileType(Enum):
+    Ground = 0x54
+
 Shape = namedtuple('Shape', ['width', 'height'])
 Point = namedtuple('Point', ['x', 'y'])
 

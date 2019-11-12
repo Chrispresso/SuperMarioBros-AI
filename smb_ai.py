@@ -6,6 +6,10 @@ from PIL import Image
 from PIL.ImageQt import ImageQt
 from typing import Tuple
 import sys
+import numpy as np
+from utils import SMB
+
+tile_size = (5, 5)
 
 def draw_border(painter: QPainter, size: Tuple[float, float]) -> None:
     painter.setPen(QPen(Qt.black, 1, Qt.SolidLine))
@@ -15,6 +19,25 @@ def draw_border(painter: QPainter, size: Tuple[float, float]) -> None:
     qpoints = [QPointF(point[0], point[1]) for point in points]
     polygon = QPolygonF(qpoints)
     painter.drawPolygon(polygon)
+
+
+class Visualizer(QtWidgets.QWidget):
+    def __init__(self, parent, size):
+        super().__init__(parent)
+        self.size = size
+        self.ram = None
+
+    def get_tiles(self):
+        return SMB.get_tiles_on_screen(self.ram)
+
+    def draw_tiles(self, painter: QPainter):
+        pass
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        draw_border(painter, self.size)
+        self.draw_tiles(painter)
+    
 
 class GameWindow(QtWidgets.QWidget):
     def __init__(self, parent, size):
@@ -30,20 +53,24 @@ class GameWindow(QtWidgets.QWidget):
         painter = QPainter(self)
         draw_border(painter, self.size)
         if not self.screen is None:
-            original = Image.fromarray(self.screen)
+            # self.img_label = QtWidgets.QLabel(self.centralWidget)
+            # screen = self.env.reset()
+  
             width = self.screen.shape[0] * 3 
-            height = self.screen.shape[1] * 2
-            resized = original.resize((width, height))
+            height = int(self.screen.shape[1] * 2)
+            # resized = original.resize((width, height))
+            resized = self.screen
+            original = QImage(self.screen, self.screen.shape[1], self.screen.shape[0], QImage.Format_RGB888)
             # Create the image and label
-            image = ImageQt(resized)
-            qimage = QImage(image)
+            # image = ImageQt(resized)
+            qimage = QImage(original)
             # Center where the image will go
-            x = (self.size[0] - width) // 2
-            y = (self.size[1] - height) // 2
-            # self.img_label.setGeometry(x, y, width, height)
+            x = (self.screen.shape[0] - width) // 2
+            y = (self.screen.shape[1] - height) // 2
+            self.img_label.setGeometry(0, 0, width, height)
             # Add image
             pixmap = QPixmap(qimage)
-            print(pixmap.isNull())
+            pixmap = pixmap.scaled(width, height, Qt.KeepAspectRatio)
             self.img_label.setPixmap(pixmap)
         
             
@@ -65,6 +92,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.init_window()
         self.show()
 
+        self._timer = QTimer(self)
+        self._timer.timeout.connect(self._update)
+        self.i = 1
+        self._timer.start(1000 // 60)
+
     def init_window(self) -> None:
         self.centralWidget = QtWidgets.QWidget(self)
         self.setCentralWidget(self.centralWidget)
@@ -74,10 +106,21 @@ class MainWindow(QtWidgets.QMainWindow):
         self.game_window = GameWindow(self.centralWidget, (672, 480))
         self.game_window.setGeometry(QRect(0, 0, 672, 480))
         self.game_window.setObjectName('game_window')
-        # Reset environment and pass the screen to the GameWindow
+        # # Reset environment and pass the screen to the GameWindow
         screen = self.env.reset()
+        print(SMB.get_tiles_on_screen(self.env.get_ram()))
         self.game_window.screen = screen
-        self.game_window.update()
+        # self.game_window.update()
+
+    def _update(self) -> None:
+        right = np.array([1,0,1,1,0,1,0,1,1], np.int8)
+        nothing = np.array([0,0,0,0,0,0,0,0,0], np.int8)
+        ret = self.env.step(nothing)
+        self.game_window.screen = ret[0]
+
+        
+
+
 
 if __name__ == "__main__":
     app = QtWidgets.QApplication(sys.argv)
