@@ -5,9 +5,6 @@ from enum import Enum, unique
 
 
 
-@unique
-class Tile(Enum):
-    EMPTY = 0
 
 @unique
 class EnemyType(Enum):
@@ -15,18 +12,50 @@ class EnemyType(Enum):
     Red_Koopa   = 0x01
     Goomba      = 0x06
 
+    @classmethod
+    def has_value(cls, value: int) -> bool:
+        return value in set(item.value for item in cls)
+
 @unique
 class StaticTileType(Enum):
+    Empty = 0x00
     Ground = 0x54
+
+    @classmethod
+    def has_value(cls, value: int) -> bool:
+        return value in set(item.value for item in cls)
+
+@unique
+class DynamicTileType(Enum):
+    Mario = 0xAA
+
+    @classmethod
+    def has_value(cls, value: int) -> bool:
+        return value in set(item.value for item in cls)
+
+class ColorMap(Enum):
+    Empty = (255, 255, 255)   # White
+    Ground = (128, 43, 0)     # Brown
+    Mario = (0, 0, 255)
+    Goomba = (255, 0, 20) 
+
 
 Shape = namedtuple('Shape', ['width', 'height'])
 Point = namedtuple('Point', ['x', 'y'])
 
+class Tile(object):
+    __slots__ = ['type']
+    def __init__(self, type: Enum):
+        self.type = type
+
 class Enemy(object):
-    def __init__(self, enemy_id: int, location: Point):
+    def __init__(self, enemy_id: int, location: Point, tile_location: Point):
         enemy_type = EnemyType(enemy_id)
         self.type = EnemyType(enemy_id)
         self.location = location
+        self.tile_location = tile_location
+
+
 
 
 
@@ -75,7 +104,8 @@ class SMB(object):
     def get_enemy_locations(cls, ram: np.ndarray):
         # We only care about enemies that are drawn. Others may?? exist
         # in memory, but if they aren't on the screen, they can't hurt us.
-        enemies = [None for _ in range(cls.MAX_NUM_ENEMIES)]
+        # enemies = [None for _ in range(cls.MAX_NUM_ENEMIES)]
+        enemies = []
 
         for enemy_num in range(cls.MAX_NUM_ENEMIES):
             enemy = ram[cls.RAMLocations.Enemy_Drawn.value + enemy_num]
@@ -84,19 +114,22 @@ class SMB(object):
                 # Get the enemy X location.
                 x_pos_level = ram[cls.RAMLocations.Enemy_X_Position_In_Level.value + enemy_num]
                 x_pos_screen = ram[cls.RAMLocations.Enemy_X_Position_On_Screen.value + enemy_num]
-                enemy_loc_x = (x_pos_level * 0x100) + x_pos_screen
-                enemy_loc_x = ram[cls.RAMLocations.Enemy_X_Position_Screen_Offset.value]
+                enemy_loc_x = (x_pos_level * 0x100) + x_pos_screen - ram[0x71c]
+                # enemy_loc_x = ram[cls.RAMLocations.Enemy_X_Position_Screen_Offset.value + enemy_num]
                 # Get the enemy Y location.
                 enemy_loc_y = ram[cls.RAMLocations.Enemy_Y_Position_On_Screen.value + enemy_num]
                 # Set location
                 location = Point(enemy_loc_x, enemy_loc_y)
+                ybin = np.digitize(enemy_loc_y, cls.ybins) - 2
+                xbin = np.digitize(enemy_loc_x, cls.xbins)
+                tile_location = Point(xbin, ybin)
 
                 # Grab the id
                 enemy_id = ram[cls.RAMLocations.Enemy_Type.value + enemy_num]
                 # Create enemy
-                e = Enemy(enemy_id, location)
+                e = Enemy(enemy_id, location, tile_location)
 
-                enemies[enemy_num] = e
+                enemies.append(e)
 
         return enemies
 
@@ -108,7 +141,7 @@ class SMB(object):
 
     @classmethod
     def get_tile_type(cls, ram:np.ndarray, delta_x: int, delta_y: int, mario: Point):
-        x = mario.x + delta_x + 1 # @TODO maybe +1 or +4. Half seems to mess up hitboxes sometimes
+        x = mario.x + delta_x + 8 # @TODO maybe +1 or +4. Half seems to mess up hitboxes sometimes
         y = mario.y + delta_y + cls.sprite.height
 
         # Tile locations have two pages. Determine which page we are in
@@ -116,6 +149,8 @@ class SMB(object):
         # Figure out where in the page we are
         sub_page_x = (x % 256) // 16
         sub_page_y = (y - 32) // 16  # The PPU is not part of the world, coins, etc (status bar at top)
+        if sub_page_y not in range(13):
+            return 0x00
         addr = 0x500 + page*208 + sub_page_y*16 + sub_page_x
         return ram[addr]
 
@@ -166,7 +201,7 @@ class SMB(object):
                     continue
                 ey = enemy.location.y + 8
                 ybin = np.digitize(ey, cls.ybins) - 2
-                xbin = np.digitize(ex, xbins)
+                xbin = np.digitize(ex, cls.xbins)
                 tiles[ybin, xbin] = enemy.type.value
 
 

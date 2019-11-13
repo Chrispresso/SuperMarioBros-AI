@@ -7,9 +7,9 @@ from PIL.ImageQt import ImageQt
 from typing import Tuple
 import sys
 import numpy as np
-from utils import SMB
+from utils import SMB, EnemyType, StaticTileType, ColorMap, DynamicTileType
 
-tile_size = (5, 5)
+tile_size = (16, 16)
 
 def draw_border(painter: QPainter, size: Tuple[float, float]) -> None:
     painter.setPen(QPen(Qt.black, 1, Qt.SolidLine))
@@ -31,12 +31,70 @@ class Visualizer(QtWidgets.QWidget):
         return SMB.get_tiles_on_screen(self.ram)
 
     def draw_tiles(self, painter: QPainter):
-        pass
+        tiles = self.get_tiles()
+        enemies = SMB.get_enemy_locations(self.ram)
+
+        assert tiles.shape == (13,16)
+        for row in range(tiles.shape[0]):
+            for col in range(tiles.shape[1]):
+                painter.setPen(QPen(Qt.black,  1, Qt.SolidLine))
+                painter.setBrush(QBrush(Qt.white, Qt.SolidPattern))
+                width = tile_size[0]
+                height = tile_size[1]
+                x_start = 5 + (width * col)
+                y_start = 5 + (height * row)
+                
+                # Determine type
+                #@TODO: Make this better
+                tile_value = tiles[row, col]
+                if StaticTileType.has_value(tile_value):
+                    
+                    e = StaticTileType(tile_value)
+                    q = ColorMap[e.name]
+                    rgb = q.value
+                    color = QColor(*rgb)
+                    painter.setBrush(QBrush(color))
+                    
+                    
+                            # del enemies[idx]
+                if EnemyType.has_value(tile_value):
+                    if enemies:
+                        idx = None
+                        for i, enemy in enumerate(enemies):
+                            if enemy.type.value == tile_value:# and \
+                            #    enemy.tile_location.y == row and enemy.tile_location.x == col:
+                                idx = i
+                                # break
+                        if not idx is None:
+                            enemy_name = enemies[idx].type.name
+                            print(enemies[idx].tile_location)
+                            print(enemies[idx].location)
+                            color = ColorMap[enemy_name]
+                            rgb = color.value
+                            # print(rgb)
+                            color = QColor(*rgb)
+                            painter.setBrush(QBrush(color))
+                            del enemies[idx]
+                # If it's a DynamicTile, grab the color as usual
+                elif DynamicTileType.has_value(tile_value):
+                    dynamic_tile = DynamicTileType(tile_value)
+                    rgb = ColorMap[dynamic_tile.name].value
+                    color = QColor(*rgb)
+                    painter.setBrush(QBrush(color))
+                else:
+                    pass
+
+                painter.drawRect(x_start, y_start, width, height)
 
     def paintEvent(self, event):
         painter = QPainter(self)
         draw_border(painter, self.size)
-        self.draw_tiles(painter)
+        if not self.ram is None:
+            self.draw_tiles(painter)
+
+    def _update(self):
+        self.update()
+    
     
 
 class GameWindow(QtWidgets.QWidget):
@@ -50,7 +108,8 @@ class GameWindow(QtWidgets.QWidget):
         self.setLayout(self.layout)
 
     def paintEvent(self, event):
-        painter = QPainter(self)
+        painter = QPainter()
+        painter.begin(self)
         draw_border(painter, self.size)
         if not self.screen is None:
             # self.img_label = QtWidgets.QLabel(self.centralWidget)
@@ -71,9 +130,14 @@ class GameWindow(QtWidgets.QWidget):
             # Add image
             pixmap = QPixmap(qimage)
             pixmap = pixmap.scaled(width, height, Qt.KeepAspectRatio)
+            # print(pixmap.width(), pixmap.height())
             self.img_label.setPixmap(pixmap)
-        
+        # print('here')
             
+        painter.end()
+
+    def _update(self):
+        self.update()
 
 
 
@@ -82,7 +146,7 @@ class MainWindow(QtWidgets.QMainWindow):
         super().__init__()
         self.top = 150
         self.left = 150
-        self.width = 700
+        self.width = 1100
         self.height = 500
 
         self.title = 'Super Mario Bros AI'
@@ -95,7 +159,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._update)
         self.i = 1
-        self._timer.start(1000 // 60)
+        self._timer.start(1000 // 30)
 
     def init_window(self) -> None:
         self.centralWidget = QtWidgets.QWidget(self)
@@ -103,20 +167,29 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setWindowTitle(self.title)
         self.setGeometry(self.top, self.left, self.width, self.height)
 
-        self.game_window = GameWindow(self.centralWidget, (672, 480))
-        self.game_window.setGeometry(QRect(0, 0, 672, 480))
+        self.game_window = GameWindow(self.centralWidget, (514, 480))
+        self.game_window.setGeometry(QRect(1100-514, 0, 514, 480))
         self.game_window.setObjectName('game_window')
         # # Reset environment and pass the screen to the GameWindow
         screen = self.env.reset()
-        print(SMB.get_tiles_on_screen(self.env.get_ram()))
         self.game_window.screen = screen
         # self.game_window.update()
 
+        self.viz_window = Visualizer(self.centralWidget, (1100-514, 480))
+        self.viz_window.setGeometry(0, 0, 1100-514, 480)
+        self.viz_window.setObjectName('viz_window')
+        self.viz_window.ram = self.env.get_ram()
+
     def _update(self) -> None:
-        right = np.array([1,0,1,1,0,1,0,1,1], np.int8)
+        right =   np.array([0,0,0,0,0,0,0,1,0], np.int8)
         nothing = np.array([0,0,0,0,0,0,0,0,0], np.int8)
-        ret = self.env.step(nothing)
+        ret = self.env.step(right)
         self.game_window.screen = ret[0]
+        self.viz_window.ram = self.env.get_ram()
+        
+        self.update()
+        self.game_window._update()
+        self.viz_window._update()
 
         
 
