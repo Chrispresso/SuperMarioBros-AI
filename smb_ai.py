@@ -34,51 +34,21 @@ class Visualizer(QtWidgets.QWidget):
         tiles = self.get_tiles()
         enemies = SMB.get_enemy_locations(self.ram)
 
-        assert tiles.shape == (13,16)
-        for row in range(tiles.shape[0]):
-            for col in range(tiles.shape[1]):
+        # assert tiles.shape == (13,16)
+        for row in range(13):
+            for col in range(16):
                 painter.setPen(QPen(Qt.black,  1, Qt.SolidLine))
                 painter.setBrush(QBrush(Qt.white, Qt.SolidPattern))
                 width = tile_size[0]
                 height = tile_size[1]
                 x_start = 5 + (width * col)
                 y_start = 5 + (height * row)
-                
-                # Determine type
-                #@TODO: Make this better
-                tile_value = tiles[row, col]
-                if StaticTileType.has_value(tile_value):
-                    
-                    e = StaticTileType(tile_value)
-                    q = ColorMap[e.name]
-                    rgb = q.value
-                    color = QColor(*rgb)
-                    painter.setBrush(QBrush(color))
-                    
-                    
-                            # del enemies[idx]
-                if EnemyType.has_value(tile_value):
-                    if enemies:
-                        idx = None
-                        for i, enemy in enumerate(enemies):
-                            if enemy.type.value == tile_value:# and \
-                            #    enemy.tile_location.y == row and enemy.tile_location.x == col:
-                                idx = i
-                                # break
-                        if not idx is None:
-                            enemy_name = enemies[idx].type.name
-                            print(enemies[idx].tile_location)
-                            print(enemies[idx].location)
-                            color = ColorMap[enemy_name]
-                            rgb = color.value
-                            # print(rgb)
-                            color = QColor(*rgb)
-                            painter.setBrush(QBrush(color))
-                            del enemies[idx]
-                # If it's a DynamicTile, grab the color as usual
-                elif DynamicTileType.has_value(tile_value):
-                    dynamic_tile = DynamicTileType(tile_value)
-                    rgb = ColorMap[dynamic_tile.name].value
+
+                loc = (row, col)
+                tile = tiles[loc]
+
+                if isinstance(tile, (StaticTileType, DynamicTileType, EnemyType)):
+                    rgb = ColorMap[tile.name].value
                     color = QColor(*rgb)
                     painter.setBrush(QBrush(color))
                 else:

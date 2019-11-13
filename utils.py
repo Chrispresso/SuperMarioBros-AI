@@ -178,8 +178,9 @@ class SMB(object):
         tiles_left = x_loc // 16
         tiles_right = 16 - 1 - tiles_left
 
-        tiles = np.empty((13,16), np.uint8)
-        tiles.fill(0xFF)
+        # tiles = np.empty((13,16), np.uint8)
+        # tiles.fill(0xFF)
+        tiles = {}
 
         # Grab enemies
         enemies = cls.get_enemy_locations(ram)
@@ -188,11 +189,19 @@ class SMB(object):
             for x in range(-tiles_left, tiles_right+1):
                 dy = y*16
                 dx = x*16
-                tiles[y+tiles_up, x+tiles_left] = cls.get_tile_type(ram, dx, dy, mario)
+                loc = (y+tiles_up, x+tiles_left)
+                tile_type = cls.get_tile_type(ram, dx, dy, mario)
+                # @TODO fill in values
+                if StaticTileType.has_value(tile_type):
+                    tile = StaticTileType(tile_type)
+                else:
+                    # print('missing', tile_type)
+                    tile = StaticTileType(0x00)
+                tiles[loc] = tile
                 # If dx and dy are both 0, this is where mario is
                 # @TODO: I think this changes for when mario is big. He might take up 2 sprites then
                 if dx == dy == 0:
-                    tiles[y+tiles_up, x+tiles_left]= 0xAA
+                    tiles[loc]= DynamicTileType(0xAA)  # Mario
 
         for enemy in enemies:
             if enemy:
@@ -202,7 +211,8 @@ class SMB(object):
                 ey = enemy.location.y + 8
                 ybin = np.digitize(ey, cls.ybins) - 2
                 xbin = np.digitize(ex, cls.xbins)
-                tiles[ybin, xbin] = enemy.type.value
+                loc = (ybin, xbin)
+                tiles[loc] = EnemyType(enemy.type.value)
 
 
         return tiles
