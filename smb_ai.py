@@ -8,6 +8,7 @@ from typing import Tuple
 import sys
 import numpy as np
 from utils import SMB, EnemyType, StaticTileType, ColorMap, DynamicTileType
+from config import Config
 
 tile_size = (16, 16)
 
@@ -22,13 +23,38 @@ def draw_border(painter: QPainter, size: Tuple[float, float]) -> None:
 
 
 class Visualizer(QtWidgets.QWidget):
-    def __init__(self, parent, size):
+    def __init__(self, parent, size, config: Config):
         super().__init__(parent)
         self.size = size
+        self.config = config
         self.ram = None
 
     def get_tiles(self):
         return SMB.get_tiles_on_screen(self.ram)
+
+    def _draw_region_of_interest(self, painter: QPainter) -> None:
+        # Grab mario row/col in our tiles
+        mario = SMB.get_mario_location_on_screen(self.ram)
+        mario_row, mario_col = SMB.get_tile_loc(mario.x, mario.y)
+        # Determine how many tiles up, down, left, right we need
+        input_directions = (2, 2, 2, 2)  # @TODO: get configparser to parse this stuff
+        up, down, left, right = input_directions
+        min_row = max(0, mario_row - up)
+        max_row = min(12, mario_row + down)
+        min_col = max(0, mario_col - left)
+        max_col = min(15, mario_col + right)
+        
+        x, y = min_col, min_row
+        width = max_col - min_col + 1
+        height = max_row - min_row + 1
+        tile_width, tile_height = (16, 16)  # @TODO: Get config parser to parse this
+
+        color = QColor(255, 0, 217)
+        painter.setPen(QPen(color, 3.0, Qt.SolidLine))
+        painter.setBrush(QBrush(Qt.NoBrush))
+        painter.drawRect(x*tile_width + 5, y*tile_height + 5, width*tile_width, height*tile_height)
+
+
 
     def draw_tiles(self, painter: QPainter):
         tiles = self.get_tiles()
@@ -61,6 +87,7 @@ class Visualizer(QtWidgets.QWidget):
         draw_border(painter, self.size)
         if not self.ram is None:
             self.draw_tiles(painter)
+            self._draw_region_of_interest(painter)
 
     def _update(self):
         self.update()
@@ -68,9 +95,10 @@ class Visualizer(QtWidgets.QWidget):
     
 
 class GameWindow(QtWidgets.QWidget):
-    def __init__(self, parent, size):
+    def __init__(self, parent, size, config: Config):
         super().__init__(parent)
         self.size = size
+        self.config = config
         self.screen = None
         self.img_label = QtWidgets.QLabel(self)
         self.layout = QtWidgets.QVBoxLayout()
@@ -112,8 +140,9 @@ class GameWindow(QtWidgets.QWidget):
 
 
 class MainWindow(QtWidgets.QMainWindow):
-    def __init__(self):
+    def __init__(self, config: Config):
         super().__init__()
+        self.config = config
         self.top = 150
         self.left = 150
         self.width = 1100
@@ -129,7 +158,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._update)
         self.i = 1
-        self._timer.start(1000 // 30)
+        self._timer.start(1000 // 60)
 
     def init_window(self) -> None:
         self.centralWidget = QtWidgets.QWidget(self)
@@ -137,7 +166,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setWindowTitle(self.title)
         self.setGeometry(self.top, self.left, self.width, self.height)
 
-        self.game_window = GameWindow(self.centralWidget, (514, 480))
+        self.game_window = GameWindow(self.centralWidget, (514, 480), self.config)
         self.game_window.setGeometry(QRect(1100-514, 0, 514, 480))
         self.game_window.setObjectName('game_window')
         # # Reset environment and pass the screen to the GameWindow
@@ -145,7 +174,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.game_window.screen = screen
         # self.game_window.update()
 
-        self.viz_window = Visualizer(self.centralWidget, (1100-514, 480))
+        self.viz_window = Visualizer(self.centralWidget, (1100-514, 480), self.config)
         self.viz_window.setGeometry(0, 0, 1100-514, 480)
         self.viz_window.setObjectName('viz_window')
         self.viz_window.ram = self.env.get_ram()
@@ -166,6 +195,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
 if __name__ == "__main__":
+    config = Config('settings.config')
     app = QtWidgets.QApplication(sys.argv)
-    window = MainWindow()
+    window = MainWindow(config)
     sys.exit(app.exec_())

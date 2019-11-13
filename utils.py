@@ -20,6 +20,13 @@ class EnemyType(Enum):
 class StaticTileType(Enum):
     Empty = 0x00
     Ground = 0x54
+    Top_Pipe1 = 0x12
+    Top_Pipe2 = 0x13
+    Bottom_Pipe1 = 0x14
+    Bottom_Pipe2 = 0x15
+    Coin_Block1 = 0xC0
+    Coin_Block2 = 0xC1  # @TODO I think one of the coin (?? block) is actually a mushroom
+    Breakable_Block = 0x51
 
     @classmethod
     def has_value(cls, value: int) -> bool:
@@ -37,8 +44,14 @@ class ColorMap(Enum):
     Empty = (255, 255, 255)   # White
     Ground = (128, 43, 0)     # Brown
     Mario = (0, 0, 255)
-    Goomba = (255, 0, 20) 
-
+    Goomba = (255, 0, 20)
+    Top_Pipe1 = (0, 15, 21)  # Dark Green
+    Top_Pipe2 = (0, 15, 21)  # Dark Green
+    Bottom_Pipe1 = (5, 179, 34)  # Light Green
+    Bottom_Pipe2 = (5, 179, 34)  # Light Green
+    Coin_Block1 = (219, 202, 18)  # Gold
+    Coin_Block2 = (219, 202, 18)  # Gold
+    Breakable_Block = (79, 70, 25)  # Brownish
 
 Shape = namedtuple('Shape', ['width', 'height'])
 Point = namedtuple('Point', ['x', 'y'])
@@ -140,8 +153,14 @@ class SMB(object):
         return Point(mario_x, mario_y)
 
     @classmethod
+    def get_mario_location_on_screen(cls, ram: np.ndarray):
+        mario_x = ram[cls.RAMLocations.Player_X_Position_Screen_Offset.value] + 8
+        mario_y = ram[0xce] * ram[0xb5] + cls.sprite.height  # @TODO: Change this to screen and not level
+        return Point(mario_x, mario_y)
+
+    @classmethod
     def get_tile_type(cls, ram:np.ndarray, delta_x: int, delta_y: int, mario: Point):
-        x = mario.x + delta_x + 8 # @TODO maybe +1 or +4. Half seems to mess up hitboxes sometimes
+        x = mario.x + delta_x + 4 # @TODO maybe +1 or +4. Half seems to mess up hitboxes sometimes
         y = mario.y + delta_y + cls.sprite.height
 
         # Tile locations have two pages. Determine which page we are in
@@ -149,18 +168,16 @@ class SMB(object):
         # Figure out where in the page we are
         sub_page_x = (x % 256) // 16
         sub_page_y = (y - 32) // 16  # The PPU is not part of the world, coins, etc (status bar at top)
-        if sub_page_y not in range(13):
+        if sub_page_y not in range(13) or sub_page_x not in range(16):
             return 0x00
         addr = 0x500 + page*208 + sub_page_y*16 + sub_page_x
         return ram[addr]
 
     @classmethod
     def get_tile_loc(cls, x, y):
-        y = y % cls.resolution.height
-        x = x % cls.resolution.width
-        y = (y - cls.status_bar.height) // cls.sprite.height
-        x = x // cls.sprite.width
-        return Point(x, y)
+        row = np.digitize(y, cls.ybins) - 2
+        col = np.digitize(x, cls.xbins)
+        return (row, col)
 
     # @classmethod
     # def get_tile_location(cls, ram: np.ndarray, )
