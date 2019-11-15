@@ -59,6 +59,7 @@ class Visualizer(QtWidgets.QWidget):
     def draw_tiles(self, painter: QPainter):
         tiles = self.get_tiles()
         enemies = SMB.get_enemy_locations(self.ram)
+        print(self.ram[0x500:0x69f+1])
 
         # assert tiles.shape == (13,16)
         for row in range(13):
@@ -157,6 +158,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._update)
+        self.keys = np.array([0, 0, 0, 0, 0, 0, 0, 0, 0], np.int8)
         self.i = 1
         self._timer.start(1000 // 60)
 
@@ -179,16 +181,46 @@ class MainWindow(QtWidgets.QMainWindow):
         self.viz_window.setObjectName('viz_window')
         self.viz_window.ram = self.env.get_ram()
 
+    def keyPressEvent(self, event):
+        k = event.key()
+        m = {
+            Qt.Key_Right : 7,
+            Qt.Key_C : 8,
+            Qt.Key_X: 0,
+            Qt.Key_Left: 6,
+            Qt.Key_Down: 5
+        }
+        if k in m:
+            self.keys[m[k]] = 1
+
+    def keyReleaseEvent(self, event):
+        k = event.key()
+        m = {
+            Qt.Key_Right : 7,
+            Qt.Key_C : 8,
+            Qt.Key_X: 0,
+            Qt.Key_Left: 6,
+            Qt.Key_Down: 5
+        }
+        if k in m:
+            self.keys[m[k]] = 0
+
+        
+
+
     def _update(self) -> None:
-        right =   np.array([0,0,0,0,0,0,0,1,0], np.int8)
-        nothing = np.array([0,0,0,0,0,0,0,0,0], np.int8)
-        ret = self.env.step(right)
+        self.i += 1
+        # right =   np.array([0,0,0,0,0,0,0,1,0], np.int8)
+        # nothing = np.array([0,0,0,0,0,0,0,0,0], np.int8)
+        ret = self.env.step(self.keys)
         self.game_window.screen = ret[0]
-        self.viz_window.ram = self.env.get_ram()
+        # self.viz_window.ram = self.env.get_ram()
         
         self.update()
         self.game_window._update()
-        self.viz_window._update()
+        if self.i % 6 == 0:
+            self.viz_window.ram = self.env.get_ram()
+            self.viz_window._update()
 
         
 

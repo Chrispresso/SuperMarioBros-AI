@@ -154,13 +154,13 @@ class SMB(object):
 
     @classmethod
     def get_mario_location_on_screen(cls, ram: np.ndarray):
-        mario_x = ram[cls.RAMLocations.Player_X_Position_Screen_Offset.value] + 8
+        mario_x = ram[cls.RAMLocations.Player_X_Position_Screen_Offset.value] 
         mario_y = ram[0xce] * ram[0xb5] + cls.sprite.height  # @TODO: Change this to screen and not level
         return Point(mario_x, mario_y)
 
     @classmethod
     def get_tile_type(cls, ram:np.ndarray, delta_x: int, delta_y: int, mario: Point):
-        x = mario.x + delta_x + 4 # @TODO maybe +1 or +4. Half seems to mess up hitboxes sometimes
+        x = mario.x + delta_x  # @TODO maybe +1 or +4. Half seems to mess up hitboxes sometimes
         y = mario.y + delta_y + cls.sprite.height
 
         # Tile locations have two pages. Determine which page we are in
@@ -195,6 +195,9 @@ class SMB(object):
         tiles_left = x_loc // 16
         tiles_right = 16 - 1 - tiles_left
 
+        tiles_left = 7
+        tiles_right = 8
+
         # tiles = np.empty((13,16), np.uint8)
         # tiles.fill(0xFF)
         tiles = {}
@@ -206,7 +209,12 @@ class SMB(object):
             for x in range(-tiles_left, tiles_right+1):
                 dy = y*16
                 dx = x*16
+                
                 loc = (y+tiles_up, x+tiles_left)
+                if mario.x + dx - ram[0x71c] >= 256:
+                    tiles[loc] = StaticTileType.Empty
+                    continue
+
                 tile_type = cls.get_tile_type(ram, dx, dy, mario)
                 # @TODO fill in values
                 if StaticTileType.has_value(tile_type):
@@ -226,6 +234,7 @@ class SMB(object):
                 if ex >= cls.resolution.width:
                     continue
                 ey = enemy.location.y + 8
+                ex += 8
                 ybin = np.digitize(ey, cls.ybins) - 2
                 xbin = np.digitize(ex, cls.xbins)
                 loc = (ybin, xbin)
