@@ -149,7 +149,8 @@ class SMB(object):
     @classmethod
     def get_mario_location_in_level(cls, ram: np.ndarray) -> Point:
         mario_x = ram[cls.RAMLocations.Player_X_Postion_In_Level.value] * 256 + ram[cls.RAMLocations.Player_X_Position_On_Screen.value]
-        mario_y = ram[0xce] * ram[0xb5]
+        # mario_y = ram[0xce] * ram[0xb5]
+        mario_y = ram[0x3b8]
         return Point(mario_x, mario_y)
 
     @classmethod
@@ -168,7 +169,7 @@ class SMB(object):
         # Figure out where in the page we are
         sub_page_x = (x % 256) // 16
         sub_page_y = (y - 32) // 16  # The PPU is not part of the world, coins, etc (status bar at top)
-        if sub_page_y not in range(13) or sub_page_x not in range(16):
+        if sub_page_y not in range(13):# or sub_page_x not in range(16):
             return 0x00
         addr = 0x500 + page*208 + sub_page_y*16 + sub_page_x
         return ram[addr]
@@ -195,8 +196,8 @@ class SMB(object):
         tiles_left = x_loc // 16
         tiles_right = 16 - 1 - tiles_left
 
-        tiles_left = 7
-        tiles_right = 8
+        # tiles_left = 7
+        # tiles_right = 8
 
         # tiles = np.empty((13,16), np.uint8)
         # tiles.fill(0xFF)
@@ -242,3 +243,48 @@ class SMB(object):
 
 
         return tiles
+
+    @classmethod
+    def get_tiles(cls, ram: np.ndarray):
+        tiles = {}
+        row = 0
+        col = 0
+
+        mario_level = cls.get_mario_location_in_level(ram)
+        mario_screen = cls.get_mario_location_on_screen(ram)
+        # mario_screen = ram[0x86] - ram[0x71c]
+        x_start = mario_level.x - mario_screen.x
+        y_start = 0
+        for dy in range(y_start, 240, 16):
+            for dx in range(x_start, x_start + 256, 16):
+                loc = (row, col)
+                tile = cls.get_tile(dx, dy, ram)
+                tiles[loc] = StaticTileType(tile)
+                # print('{:02X}'.format(tile), end=' ')
+                col += 1
+
+            col = 0
+            row += 1
+        return tiles
+
+    @classmethod
+    def get_mario_row_col(cls, ram):
+        x, y = cls.get_mario_location_on_screen(ram)
+        col = x // 16
+        row = (y-0) // 16
+        return (row, col)
+
+
+    @classmethod
+    def get_tile(cls, x, y, ram):
+        page = (x // 256) % 2
+        sub_x = (x % 256) // 16
+        sub_y = (y - 32) // 16
+
+        if sub_y not in range(13):
+            return 0x00
+
+        addr = 0x500 + page*208 + sub_y*16 + sub_x
+        return ram[addr]
+
+        

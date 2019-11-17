@@ -36,11 +36,12 @@ class Visualizer(QtWidgets.QWidget):
         # Grab mario row/col in our tiles
         mario = SMB.get_mario_location_on_screen(self.ram)
         mario_row, mario_col = SMB.get_tile_loc(mario.x, mario.y)
+        mario_row, mario_col = SMB.get_mario_row_col(self.ram)
         # Determine how many tiles up, down, left, right we need
         input_directions = (2, 2, 2, 2)  # @TODO: get configparser to parse this stuff
         up, down, left, right = input_directions
         min_row = max(0, mario_row - up)
-        max_row = min(12, mario_row + down)
+        max_row = min(14, mario_row + down)
         min_col = max(0, mario_col - left)
         max_col = min(15, mario_col + right)
         
@@ -57,12 +58,27 @@ class Visualizer(QtWidgets.QWidget):
 
 
     def draw_tiles(self, painter: QPainter):
-        tiles = self.get_tiles()
+        # tiles = self.get_tiles()
+        tiles = SMB.get_tiles(self.ram)
         enemies = SMB.get_enemy_locations(self.ram)
-        print(self.ram[0x500:0x69f+1])
-
+        mario_row, mario_col = SMB.get_mario_row_col(self.ram)
+        tiles[(mario_row, mario_col)] = DynamicTileType(0xAA)
+        # print(self.ram[0x500:0x69f+1])
+        # print(SMB.get_tiles(self.ram))
+        # SMB.get_tiles(self.ram)
+        # print(SMB.get_tiles(self.ram))
+        # mario = SMB.get_mario_location_in_level(self.ram)
+        # x, y = mario.x, mario.y 
+        # page = (x // 256) % 2
+        # sub_page_x = (x % 256) // 16
+        # sub_page_y = (y - 32) // 16 
+        # mario_screen = SMB.get_mario_location_on_screen(self.ram)
+        # tiles_left = mario_screen.x // 16
+        # tiles_up = mario_screen.y // 16
+        # print('page: {}, subx: {}, suby: {}'.format(page, sub_page_x, sub_page_y))
+        # print('left: {}, above: {}'.format(tiles_left, tiles_up))
         # assert tiles.shape == (13,16)
-        for row in range(13):
+        for row in range(15):
             for col in range(16):
                 painter.setPen(QPen(Qt.black,  1, Qt.SolidLine))
                 painter.setBrush(QBrush(Qt.white, Qt.SolidPattern))
