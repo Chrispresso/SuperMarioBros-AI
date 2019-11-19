@@ -8,9 +8,28 @@ from enum import Enum, unique
 
 @unique
 class EnemyType(Enum):
-    Green_Koopa = 0x00
-    Red_Koopa   = 0x01
+    Green_Koopa1 = 0x00
+    Red_Koopa1   = 0x01
+    Buzzy_Beetle = 0x02
+    Red_Koopa2 = 0x03
+    Green_Koopa2 = 0x04
+    Hammer_Brother = 0x05
     Goomba      = 0x06
+    Blooper = 0x07
+    Bullet_Bill = 0x08
+    Green_Koopa_Paratroopa = 0x09
+    Grey_Cheep_Cheep = 0x0A
+    Red_Cheep_Cheep = 0x0B
+    Pobodoo = 0x0C
+    Piranha_Plant = 0x0D
+    Green_Paratroopa_Jump = 0x0E
+    Bowser_Flame1 = 0x10
+    Lakitu = 0x11
+    Spiny_Egg = 0x12
+    Fly_Cheep_Cheep = 0x14
+    Bowser_Flame2 = 0x15
+
+    Generic_Enemy = 0xFF
 
     @classmethod
     def has_value(cls, value: int) -> bool:
@@ -25,9 +44,14 @@ class StaticTileType(Enum):
     Top_Pipe2 = 0x13
     Bottom_Pipe1 = 0x14
     Bottom_Pipe2 = 0x15
+    Flagpole_Top =  0x24
+    Flagpole = 0x25
     Coin_Block1 = 0xC0
     Coin_Block2 = 0xC1  # @TODO I think one of the coin (?? block) is actually a mushroom
+    Coin = 0xC2
     Breakable_Block = 0x51
+
+    Generic_Static_Tile = 0xFF
 
     @classmethod
     def has_value(cls, value: int) -> bool:
@@ -36,6 +60,25 @@ class StaticTileType(Enum):
 @unique
 class DynamicTileType(Enum):
     Mario = 0xAA
+
+    Static_Lift1 = 0x24
+    Static_Lift2 = 0x25
+    Vertical_Lift1 = 0x26
+    Vertical_Lift2 = 0x27
+    Horizontal_Lift = 0x28
+    Falling_Static_Lift = 0x29
+    Horizontal_Moving_Lift=  0x2A
+    Lift1 = 0x2B
+    Lift2 = 0x2C
+    Vine = 0x2F
+    Flagpole = 0x30
+    Start_Flag = 0x31
+    Jump_Spring = 0x32
+    Warpzone = 0x34
+    Spring1 = 0x67
+    Spring2 = 0x68
+
+    Generic_Dynamic_Tile = 0xFF
 
     @classmethod
     def has_value(cls, value: int) -> bool:
@@ -54,6 +97,10 @@ class ColorMap(Enum):
     Coin_Block1 = (219, 202, 18)  # Gold
     Coin_Block2 = (219, 202, 18)  # Gold
     Breakable_Block = (79, 70, 25)  # Brownish
+
+    Generic_Enemy = (255, 0, 20)  # Red
+    Generic_Static_Tile = (128, 43, 0) 
+    Generic_Dynamic_Tile = (79, 70, 25)
 
 Shape = namedtuple('Shape', ['width', 'height'])
 Point = namedtuple('Point', ['x', 'y'])
@@ -248,7 +295,7 @@ class SMB(object):
         return tiles
 
     @classmethod
-    def get_tiles(cls, ram: np.ndarray):
+    def get_tiles(cls, ram: np.ndarray, q=True):
         tiles = {}
         row = 0
         col = 0
@@ -263,30 +310,51 @@ class SMB(object):
         enemies = cls.get_enemy_locations(ram)
         y_start = 0
         mx, my = cls.get_mario_location_in_level(ram)
-        mx += 4
         my += 16
+        mx_offset = ram[0x3ad]
         # mx = mx % 256
         # my = my % 240
         # print(mx, my)
-        mx = ram[0x3ad]+8
+        mx = ram[0x3ad]
         # print(mx, my)
-        for dy in range(y_start, 240, 16):
-            for dx in range(x_start, x_start + 256, 16):
+        for y_pos in range(y_start, 240, 16):
+            for x_pos in range(x_start, x_start + 256, 16):
                 loc = (row, col)
-                tile = cls.get_tile(dx, dy, ram)
-                tiles[loc] = StaticTileType(tile)
-                
+                tile = cls.get_tile(x_pos, y_pos, ram,q)
+                x, y = x_pos, y_pos
+                page = (x // 256) % 2
+                sub_x = (x % 256) // 16
+                sub_y = (y - 32) // 16
+                addr = 0x500 + page*208 + sub_y*16 + sub_x
+                if not q:
+                    print('{:02X}'.format(ram[addr]), end=' ')
+
+                try:
+                    tiles[loc] = StaticTileType(tile)
+                except:
+                    tiles[loc] = StaticTileType(0x01)
                 for enemy in enemies:
                     ex = enemy.location.x
                     ey = enemy.location.y + 8
                     # print(ex, ey)
-                    if abs(dx - ex) <=8 and abs(dy - ey) <=8:
+                    if abs(x_pos - ex) <=8 and abs(y_pos - ey) <=8:
                         tiles[loc] = EnemyType(0x06)
+
+                # if abs((x_start + x_pos) - mx) <=8 and abs(y_pos - my) <= 8:
+                #     tiles[loc] = DynamicTileType(0xAA)
 
                 col += 1
 
             col = 0
             row += 1
+            if not q:
+                print()
+        
+        
+        
+        # if enemies:
+        #     e = ', '.join(e.type.name for e in enemies)
+        #     print(e)
 
         # for enemy in enemies:
         #     xbin, ybin = enemy.tile_location
@@ -326,7 +394,7 @@ class SMB(object):
 
 
     @classmethod
-    def get_tile(cls, x, y, ram):
+    def get_tile(cls, x, y, ram,q=True):
         page = (x // 256) % 2
         sub_x = (x % 256) // 16
         sub_y = (y - 32) // 16
@@ -335,8 +403,9 @@ class SMB(object):
             return 0x00
 
         addr = 0x500 + page*208 + sub_y*16 + sub_x
-        if ram[addr] != 0:
-            return 0x01  # Fake tile
+        if q:
+            if ram[addr] != 0:
+                return 0x01  # Fake tile
         return ram[addr]
 
         

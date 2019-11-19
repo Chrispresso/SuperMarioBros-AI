@@ -166,7 +166,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.height = 500
 
         self.title = 'Super Mario Bros AI'
-        self.env = retro.make('SuperMarioBros-Nes', state='Level1-1')
+        self.env = retro.make(game='SuperMarioBros-Nes', state='Level2-1')
 
 
         self.init_window()
@@ -208,6 +208,14 @@ class MainWindow(QtWidgets.QMainWindow):
         }
         if k in m:
             self.keys[m[k]] = 1
+        if k == Qt.Key_D:
+            tiles = SMB.get_tiles(self.env.get_ram(), False)
+            print(SMB.get_mario_location_in_level(self.env.get_ram()))
+            # for row in range(15):
+            #     for col in range(16):
+            #         loc = (row, col)
+            #         print('{:02X}'.format(tiles[loc].value), end=' ')
+            #     print()
 
     def keyReleaseEvent(self, event):
         k = event.key()
@@ -234,7 +242,7 @@ class MainWindow(QtWidgets.QMainWindow):
         
         self.update()
         self.game_window._update()
-        if self.i % 6 == 0:
+        if self.i % 5 == 0:
             self.viz_window.ram = self.env.get_ram()
             self.viz_window._update()
 
