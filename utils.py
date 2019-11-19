@@ -19,6 +19,7 @@ class EnemyType(Enum):
 @unique
 class StaticTileType(Enum):
     Empty = 0x00
+    Fake = 0x01
     Ground = 0x54
     Top_Pipe1 = 0x12
     Top_Pipe2 = 0x13
@@ -43,6 +44,7 @@ class DynamicTileType(Enum):
 class ColorMap(Enum):
     Empty = (255, 255, 255)   # White
     Ground = (128, 43, 0)     # Brown
+    Fake = (128, 43, 0)
     Mario = (0, 0, 255)
     Goomba = (255, 0, 20)
     Top_Pipe1 = (0, 15, 21)  # Dark Green
@@ -122,25 +124,26 @@ class SMB(object):
 
         for enemy_num in range(cls.MAX_NUM_ENEMIES):
             enemy = ram[cls.RAMLocations.Enemy_Drawn.value + enemy_num]
-            # Is there an enemy 1/0?
+            # Is there an enemy? 1/0
             if enemy:
                 # Get the enemy X location.
                 x_pos_level = ram[cls.RAMLocations.Enemy_X_Position_In_Level.value + enemy_num]
                 x_pos_screen = ram[cls.RAMLocations.Enemy_X_Position_On_Screen.value + enemy_num]
-                enemy_loc_x = (x_pos_level * 0x100) + x_pos_screen - ram[0x71c]
+                enemy_loc_x = (x_pos_level * 0x100) + x_pos_screen #- ram[0x71c]
+                # print(ram[0x71c])
                 # enemy_loc_x = ram[cls.RAMLocations.Enemy_X_Position_Screen_Offset.value + enemy_num]
                 # Get the enemy Y location.
                 enemy_loc_y = ram[cls.RAMLocations.Enemy_Y_Position_On_Screen.value + enemy_num]
                 # Set location
                 location = Point(enemy_loc_x, enemy_loc_y)
-                ybin = np.digitize(enemy_loc_y, cls.ybins) - 2
+                ybin = np.digitize(enemy_loc_y, cls.ybins)
                 xbin = np.digitize(enemy_loc_x, cls.xbins)
                 tile_location = Point(xbin, ybin)
 
                 # Grab the id
                 enemy_id = ram[cls.RAMLocations.Enemy_Type.value + enemy_num]
-                # Create enemy
-                e = Enemy(enemy_id, location, tile_location)
+                # Create enemy-
+                e = Enemy(0x6, location, tile_location)
 
                 enemies.append(e)
 
@@ -254,23 +257,70 @@ class SMB(object):
         mario_screen = cls.get_mario_location_on_screen(ram)
         # mario_screen = ram[0x86] - ram[0x71c]
         x_start = mario_level.x - mario_screen.x
+        # x_start = ram[0x71c]
+        # print('start', x_start)
+
+        enemies = cls.get_enemy_locations(ram)
         y_start = 0
+        mx, my = cls.get_mario_location_in_level(ram)
+        mx += 4
+        my += 16
+        # mx = mx % 256
+        # my = my % 240
+        # print(mx, my)
+        mx = ram[0x3ad]+8
+        # print(mx, my)
         for dy in range(y_start, 240, 16):
             for dx in range(x_start, x_start + 256, 16):
                 loc = (row, col)
                 tile = cls.get_tile(dx, dy, ram)
                 tiles[loc] = StaticTileType(tile)
-                # print('{:02X}'.format(tile), end=' ')
+                
+                for enemy in enemies:
+                    ex = enemy.location.x
+                    ey = enemy.location.y + 8
+                    # print(ex, ey)
+                    if abs(dx - ex) <=8 and abs(dy - ey) <=8:
+                        tiles[loc] = EnemyType(0x06)
+
                 col += 1
 
             col = 0
             row += 1
+
+        # for enemy in enemies:
+        #     xbin, ybin = enemy.tile_location
+        #     tiles[(ybin, xbin)] = EnemyType(0x06)
+
+        # tiles[(my//16, mx//16)] = DynamicTileType(0xAA)
+
+        # Get enemy tiles
+        
+        # for enemy in enemies:
+        #     ex = enemy.location.x - x_start + 16
+        #     ey = enemy.location.y+8
+        #     row = (ey) // 16
+        #     col = ex // 16
+        #     loc = (row, col)
+        #     tiles[loc] = EnemyType(0x6)
+
+        # Get Mario
+        mario_row, mario_col = cls.get_mario_row_col(ram)
+        loc = (mario_row, mario_col)
+        tiles[loc] = DynamicTileType(0xAA)
+
         return tiles
 
     @classmethod
     def get_mario_row_col(cls, ram):
         x, y = cls.get_mario_location_on_screen(ram)
+        y = ram[0x3b8]+16
+        x+=12
+        # x = x+4
+        # x+=8
         col = x // 16
+        # y -= y%8
+        # y-=4
         row = (y-0) // 16
         return (row, col)
 
@@ -285,6 +335,8 @@ class SMB(object):
             return 0x00
 
         addr = 0x500 + page*208 + sub_y*16 + sub_x
+        if ram[addr] != 0:
+            return 0x01  # Fake tile
         return ram[addr]
 
         
