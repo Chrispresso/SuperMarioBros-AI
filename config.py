@@ -7,16 +7,40 @@ from typing import Any, Dict
 _params = {
     # Graphics Params
     'Graphics': {
-        'tile_size': tuple,
+        'tile_size': (tuple, float),
+        'neuron_radius': float,
     },
 
     # NeuralNetwork Params
     'NeuralNetwork': {
-        'inputs_size': tuple,
-        'hidden_network_architecture': tuple,
+        'inputs_size': (tuple, int),
+        'hidden_network_architecture': (tuple, int),
         'hidden_node_activation': str,
         'output_node_activation' : str,
     },
+
+    # Crossover Params
+    'Crossover': {
+        'probability_sbx': float,
+        'sbx_eta': float,
+        'crossover_selection': str,
+        'tournament_size': int,
+    },
+
+    # Mutation Params
+    'Mutation': {
+        'mutation_rate': float,
+        'mutation_rate_type': str,
+        'gaussian_mutation_scale': float,
+    },
+
+    # Selection Params
+    'Selection': {
+        'num_parents': int,
+        'num_offspring': int,
+        'selection_type': str,
+        'lifespan': float
+    }
 }
 
 class DotNotation(object):
@@ -57,7 +81,7 @@ class Config(object):
         if not os.path.isfile(self.filename):
             raise Exception('No file found named "{}"'.format(self.filename))
 
-        self._config = configparser.ConfigParser()
+        self._config = configparser.ConfigParser(inline_comment_prefixes='#')
         self._config.read(self.filename)
 
         self._verify_sections()
@@ -83,8 +107,19 @@ class Config(object):
                 try:
                     _type = _params[section][k]
                 except:
-                    raise Exception('No value "{}" found for section "{}"'.format(k, section))
-                self._config_dict[section][k] = _type(v)
+                    raise Exception('No value "{}" found for section "{}". Please set this in _params'.format(k, section))
+                # Normally _type will be int, str, float or some type of built-in type.
+                # If _type is an instance of a tuple, then we need to split the data
+                if isinstance(_type, tuple):
+                    if len(_type) == 2:
+                        cast = _type[1]
+                        v = v.replace('(', '').replace(')', '')  # Remove any parens that might be present 
+                        self._config_dict[section][k] = tuple(cast(val) for val in v.split(','))
+                    else:
+                        raise Exception('Expected a 2 tuple value describing that it is to be parse as a tuple and the type to cast it as')
+                # Otherwise parse normally
+                else:
+                    self._config_dict[section][k] = _type(v)
 
     def _verify_sections(self) -> None:
         # Validate sections

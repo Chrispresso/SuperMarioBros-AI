@@ -4,15 +4,17 @@ import random
 
 from genetic_algorithm.individual import Individual
 from neural_network import FeedForwardNetwork, linear, sigmoid, tanh, relu, leaky_relu, ActivationFunction, get_activation_by_name
+from config import Config
 
 
 class Mario(Individual):
     def __init__(self,
+                 config: Config,
                  chromosome: Optional[Dict[str, np.ndarray]] = None,
                  hidden_layer_architecture: List[int] = [12, 9],
                  hidden_activation: Optional[ActivationFunction] = 'relu',
                  output_activation: Optional[ActivationFunction] = 'sigmoid',
-                 lifespan: Union[int, float] = np.inf
+                 lifespan: Union[int, float] = np.inf,
                  ):
         
         self.lifespan = lifespan
@@ -24,8 +26,14 @@ class Mario(Individual):
         self.hidden_activation = hidden_activation
         self.output_activation = output_activation
 
+        self.config = config
+
         #@TODO: Set this based off how the input is (2,2,2,2), etc
-        num_inputs = 25
+        u, d, l, r = self.config.NeuralNetwork.inputs_size
+        ud = int(bool(u and d))  # If both u and d directions are non-zero, there is an additional square (Mario)
+        lr = int(bool(l and r))  # If both l and r directions are non-zero, there is an additional square (Mario)
+        num_inputs = (u + d + ud) * (l + r + lr)
+        
         self.inputs_as_array = np.zeros((num_inputs, 1))
         self.network_architecture = [num_inputs]                          # Input Nodes
         self.network_architecture.extend(self.hidden_layer_architecture)  # Hidden Layer Ndoes

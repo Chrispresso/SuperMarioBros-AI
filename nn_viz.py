@@ -5,12 +5,14 @@ import sys
 from typing import List
 from neural_network import *
 from mario import Mario
+from config import Config
 
 class NeuralNetworkViz(QtWidgets.QWidget):
-    def __init__(self, parent, mario: Mario, size):
+    def __init__(self, parent, mario: Mario, size, config: Config):
         super().__init__(parent)
         self.mario = mario
         self.size = size
+        self.config = config
         self.horizontal_distance_between_layers = 50
         self.vertical_distance_between_nodes = 10
         # self.num_neurons_in_largest_layer = max(self.mario.network.layer_nodes)
@@ -18,12 +20,14 @@ class NeuralNetworkViz(QtWidgets.QWidget):
         self.num_neurons_in_largest_layer = max(l[1:])
         # self.setFixedSize(600,800)
         self.neuron_locations = {}
+        self.tile_size = self.config.Graphics.tile_size
+
         # Set all neuron locations for layer 0 (Input) to be at the same point.
         # The reason I do this is because the number of inputs can easily become too many to show on the screen.
         # For this reason it is easier to not explicitly show the input nodes and rather show the bounding box of the rectangle.
         #@TODO: Make the values of 150, 5, 16, 15 come from the parent
-        self.x_offset = 150 + 16//2*16 + 5
-        self.y_offset = 5 + 15*16 + 5
+        self.x_offset = 150 + 16//2*self.tile_size[0] + 5
+        self.y_offset = 5 + 15*self.tile_size[1] + 5
         for nid in range(l[0]):
             t = (0, nid)
             
@@ -87,12 +91,7 @@ class NeuralNetworkViz(QtWidgets.QWidget):
                         painter.setBrush(QtGui.QBrush(Qt.white))
                 # Hidden layers
                 elif layer > 0 and layer < len(layer_nodes) - 1:
-                    try:
-                        saturation = max(min(activations[node, 0], 1.0), 0.0)
-                    except:
-                        print(self.mario.network.params)
-                        import sys
-                        sys.exit(-1)
+                    saturation = max(min(activations[node, 0], 1.0), 0.0)
                     painter.setBrush(QtGui.QBrush(QtGui.QColor.fromHslF(125/239, saturation, 120/240)))
                 # Output layer
                 elif layer == len(layer_nodes) - 1:
@@ -111,7 +110,7 @@ class NeuralNetworkViz(QtWidgets.QWidget):
 
         # Draw weights
         # For each layer starting at 1
-        for l in range(1, len(layer_nodes)):
+        for l in range(2, len(layer_nodes)):
             weights = self.mario.network.params['W' + str(l)]
             prev_nodes = weights.shape[1]
             curr_nodes = weights.shape[0]

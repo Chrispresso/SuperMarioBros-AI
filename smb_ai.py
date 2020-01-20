@@ -4,13 +4,16 @@ from PyQt5.QtGui import QPainter, QBrush, QPen, QPolygonF, QColor, QImage, QPixm
 from PyQt5.QtCore import Qt, QPointF, QTimer, QRect
 from PIL import Image
 from PIL.ImageQt import ImageQt
-from typing import Tuple
+from typing import Tuple, List
 import sys
 import numpy as np
 from utils import SMB, EnemyType, StaticTileType, ColorMap, DynamicTileType
 from config import Config
 from nn_viz import NeuralNetworkViz
 from mario import Mario
+
+from genetic_algorithm.individual import Individual
+from genetic_algorithm.population import Population
 
 tile_size = (16, 16)
 
@@ -32,6 +35,7 @@ class Visualizer(QtWidgets.QWidget):
         self.nn_viz = nn_viz
         self.ram = None
         self.x_offset = 150
+        self.tile_width, self.tile_height = self.config.Graphics.tile_size
 
     def get_tiles(self):
         return SMB.get_tiles_on_screen(self.ram)
@@ -42,8 +46,7 @@ class Visualizer(QtWidgets.QWidget):
         mario_row, mario_col = SMB.get_tile_loc(mario.x, mario.y)
         mario_row, mario_col = SMB.get_mario_row_col(self.ram)
         # Determine how many tiles up, down, left, right we need
-        input_directions = (2, 2, 2, 2)  # @TODO: get configparser to parse this stuff
-        up, down, left, right = input_directions
+        up, down, left, right = self.config.NeuralNetwork.inputs_size
         min_row = max(0, mario_row - up)
         max_row = min(14, mario_row + down)
         min_col = max(0, mario_col - left)
@@ -52,22 +55,21 @@ class Visualizer(QtWidgets.QWidget):
         x, y = min_col, min_row
         width = max_col - min_col + 1
         height = max_row - min_row + 1
-        tile_width, tile_height = (16, 16)  # @TODO: Get config parser to parse this
 
         color = QColor(255, 0, 217)
         painter.setPen(QPen(color, 3.0, Qt.SolidLine))
         painter.setBrush(QBrush(Qt.NoBrush))
-        painter.drawRect(x*tile_width + 5 + self.x_offset, y*tile_height + 5, width*tile_width, height*tile_height)
+        painter.drawRect(x*self.tile_width + 5 + self.x_offset, y*self.tile_height + 5, width*self.tile_width, height*self.tile_height)
 
     def _draw_output_connection(self, painter: QPainter) -> None:
         color = QColor(255, 0, 217)
         painter.setPen(QPen(color, 3.0, Qt.SolidLine))
         painter.setBrush(QBrush(Qt.NoBrush))
 
-        x_start = 5 + 150 + (16/2 * 16)
-        y_start = 5 + (15 * 16)
+        x_start = 5 + 150 + (16/2 * self.tile_width)
+        y_start = 5 + (15 * self.tile_height)
         x_end = x_start
-        y_end = y_start + 21 # (5 + 2*8) @TODO: Make the graphics drawing part of config so I can just pass it to all the drawing methods
+        y_end = y_start + 5 + (2 * self.config.Graphics.neuron_radius)
         painter.drawLine(x_start, y_start, x_end, y_end)
 
 
@@ -120,7 +122,7 @@ class Visualizer(QtWidgets.QWidget):
             self.draw_tiles(painter)
             self._draw_region_of_interest(painter)
             self._draw_output_connection(painter)
-            self.nn_viz.show_network(painter)
+            # self.nn_viz.show_network(painter)
 
     def _update(self):
         self.update()
@@ -184,15 +186,40 @@ class MainWindow(QtWidgets.QMainWindow):
         self.title = 'Super Mario Bros AI'
         self.env = retro.make(game='SuperMarioBros-Nes', state='Level2-1')
 
+        self._timer = QTimer(self)
+        self._timer.timeout.connect(self._update)
+        # Keys correspond with B, NULL, SELECT, START, U, D, L, R, A
+        # index                0  1     2       3      4  5  6  7  8
+        self.keys = np.array( [0, 0,    0,      0,     0, 0, 0, 0, 0], np.int8)
+        self.i = 1
+        # I only allow U, D, L, R, A, B and those are the indices in which the output will be generated
+        # We need a mapping from the output to the keys above
+        self.ouput_to_keys_map = {
+            0: 4,  # U
+            1: 5,  # D
+            2: 6,  # L
+            3: 7,  # R
+            4: 8,  # A
+            5: 0   # B
+        }
 
+        # Initialize the starting population
+        # individuals: List[Individual] = []
+        # for _ in range(self.config.Selection.num_parents):
+        #     individual = Mario(self.config)
+        #     individuals.append(individual)
+
+        # self.best_fitness = 0.0
+        # self._current_individual = 0
+        # self.population = Population(individuals)
+
+        # self.mario = self.population.individuals[self._current_individual]
+        self.current_generation = 0
+        self.mario = Mario(self.config)
         self.init_window()
         self.show()
 
-        self._timer = QTimer(self)
-        self._timer.timeout.connect(self._update)
-        self.keys = np.array([0, 0, 0, 0, 0, 0, 0, 0, 0], np.int8)
-        self.i = 1
-        self._timer.start(1000 // 60)
+        self._timer.start(1000 // 300)
 
     def init_window(self) -> None:
         self.centralWidget = QtWidgets.QWidget(self)
@@ -209,8 +236,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # self.game_window.update()
 
 
-        mario = Mario()
-        self.viz = NeuralNetworkViz(self.centralWidget, mario, (1100-514, 700))
+        self.viz = NeuralNetworkViz(self.centralWidget, self.mario, (1100-514, 700), self.config)
 
         self.viz_window = Visualizer(self.centralWidget, (1100-514, 700), self.config, self.viz)
         self.viz_window.setGeometry(0, 0, 1100-514, 700)
