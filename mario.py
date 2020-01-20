@@ -4,6 +4,7 @@ import random
 
 from genetic_algorithm.individual import Individual
 from neural_network import FeedForwardNetwork, linear, sigmoid, tanh, relu, leaky_relu, ActivationFunction, get_activation_by_name
+from utils import SMB, StaticTileType
 from config import Config
 
 
@@ -30,6 +31,7 @@ class Mario(Individual):
 
         #@TODO: Set this based off how the input is (2,2,2,2), etc
         u, d, l, r = self.config.NeuralNetwork.inputs_size
+        self.u, self.d, self.l, self.r = u, d, l, r
         ud = int(bool(u and d))  # If both u and d directions are non-zero, there is an additional square (Mario)
         lr = int(bool(l and r))  # If both l and r directions are non-zero, there is an additional square (Mario)
         num_inputs = (u + d + ud) * (l + r + lr)
@@ -64,7 +66,20 @@ class Mario(Individual):
     def encode_chromosome(self):
         pass
 
-    def update(self) -> bool:
+    def set_input_as_array(self, ram, tiles) -> None:
+        mario_row, mario_col = SMB.get_mario_row_col(ram)
+        #@TODO: Where did I mess up the row/col
+        for row in range(-self.l, self.r+1):
+            for col in range(-self.u, self.d+1):
+                try:
+                    t = tiles[(row + mario_row, col + mario_col)]
+                except:
+                    t = StaticTileType(0x00)
+                print('{:02X} '.format(t.value), end = '')
+            print()
+        print()
+
+    def update(self, ram) -> bool:
         """
         The main update call for Mario.
         Takes in inputs of surrounding area and feeds through the Neural Network
@@ -74,3 +89,8 @@ class Mario(Individual):
         """
         if self.is_alive:
             self._frames += 1
+
+        if ram[0x0E] in (0x0B, 0x06):
+            self.is_alive = False
+
+        return self.is_alive

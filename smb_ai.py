@@ -15,7 +15,6 @@ from mario import Mario
 from genetic_algorithm.individual import Individual
 from genetic_algorithm.population import Population
 
-tile_size = (16, 16)
 
 def draw_border(painter: QPainter, size: Tuple[float, float]) -> None:
     painter.setPen(QPen(Qt.black, 1, Qt.SolidLine))
@@ -36,9 +35,8 @@ class Visualizer(QtWidgets.QWidget):
         self.ram = None
         self.x_offset = 150
         self.tile_width, self.tile_height = self.config.Graphics.tile_size
-
-    def get_tiles(self):
-        return SMB.get_tiles_on_screen(self.ram)
+        self.tiles = None
+        self.enemies = None
 
     def _draw_region_of_interest(self, painter: QPainter) -> None:
         # Grab mario row/col in our tiles
@@ -61,22 +59,13 @@ class Visualizer(QtWidgets.QWidget):
         painter.setBrush(QBrush(Qt.NoBrush))
         painter.drawRect(x*self.tile_width + 5 + self.x_offset, y*self.tile_height + 5, width*self.tile_width, height*self.tile_height)
 
-    def _draw_output_connection(self, painter: QPainter) -> None:
-        color = QColor(255, 0, 217)
-        painter.setPen(QPen(color, 3.0, Qt.SolidLine))
-        painter.setBrush(QBrush(Qt.NoBrush))
-
-        x_start = 5 + 150 + (16/2 * self.tile_width)
-        y_start = 5 + (15 * self.tile_height)
-        x_end = x_start
-        y_end = y_start + 5 + (2 * self.config.Graphics.neuron_radius)
-        painter.drawLine(x_start, y_start, x_end, y_end)
-
 
     def draw_tiles(self, painter: QPainter):
+        if not self.tiles:
+            return
         # tiles = self.get_tiles()
-        tiles = SMB.get_tiles(self.ram)
-        enemies = SMB.get_enemy_locations(self.ram)
+        # tiles = SMB.get_tiles(self.ram)
+        # enemies = SMB.get_enemy_locations(self.ram)
         # mario_row, mario_col = SMB.get_mario_row_col(self.ram)
         # tiles[(mario_row, mario_col)] = DynamicTileType(0xAA)
         # print(self.ram[0x500:0x69f+1])
@@ -98,13 +87,11 @@ class Visualizer(QtWidgets.QWidget):
             for col in range(16):
                 painter.setPen(QPen(Qt.black,  1, Qt.SolidLine))
                 painter.setBrush(QBrush(Qt.white, Qt.SolidPattern))
-                width = tile_size[0]
-                height = tile_size[1]
-                x_start = 5 + (width * col) + self.x_offset
-                y_start = 5 + (height * row)
+                x_start = 5 + (self.tile_width * col) + self.x_offset
+                y_start = 5 + (self.tile_height * row)
 
                 loc = (row, col)
-                tile = tiles[loc]
+                tile = self.tiles[loc]
 
                 if isinstance(tile, (StaticTileType, DynamicTileType, EnemyType)):
                     rgb = ColorMap[tile.name].value
@@ -113,7 +100,7 @@ class Visualizer(QtWidgets.QWidget):
                 else:
                     pass
 
-                painter.drawRect(x_start, y_start, width, height)
+                painter.drawRect(x_start, y_start, self.tile_width, self.tile_height)
 
     def paintEvent(self, event):
         painter = QPainter(self)
@@ -121,11 +108,11 @@ class Visualizer(QtWidgets.QWidget):
         if not self.ram is None:
             self.draw_tiles(painter)
             self._draw_region_of_interest(painter)
-            self._draw_output_connection(painter)
-            # self.nn_viz.show_network(painter)
+            self.nn_viz.show_network(painter)
 
     def _update(self):
-        self.update()
+        
+        self.repaint()
     
     
 
@@ -172,6 +159,11 @@ class GameWindow(QtWidgets.QWidget):
     def _update(self):
         self.update()
 
+class InformationWidget(QtWidgets.QWidget):
+    def __init__(self, parent, size):
+        super().__init__(parent)
+
+
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -204,18 +196,25 @@ class MainWindow(QtWidgets.QMainWindow):
         }
 
         # Initialize the starting population
-        # individuals: List[Individual] = []
-        # for _ in range(self.config.Selection.num_parents):
-        #     individual = Mario(self.config)
-        #     individuals.append(individual)
+        individuals: List[Individual] = []
+        for _ in range(self.config.Selection.num_parents):
+            individual = Mario(self.config)
+            individuals.append(individual)
 
-        # self.best_fitness = 0.0
-        # self._current_individual = 0
-        # self.population = Population(individuals)
+        self.best_fitness = 0.0
+        self._current_individual = 0
+        self.population = Population(individuals)
 
-        # self.mario = self.population.individuals[self._current_individual]
+        self.mario = self.population.individuals[self._current_individual]
         self.current_generation = 0
-        self.mario = Mario(self.config)
+
+        # Determine the size of the next generation based off selection type
+        self._next_gen_size = None
+        if self.config.Selection.selection_type == 'plus':
+            self._next_gen_size = self.config.Selection.num_parents + self.config.Selection.num_offspring
+        elif self.config.Selection.selection_type == 'comma':
+            self._next_gen_size = self.config.Selection.num_offspring
+
         self.init_window()
         self.show()
 
@@ -277,9 +276,14 @@ class MainWindow(QtWidgets.QMainWindow):
             self.keys[m[k]] = 0
 
         
-
+    def next_generation(self) -> None:
+        pass
 
     def _update(self) -> None:
+        """
+        This is the main update method which is called based on the FPS timer.
+        Genetic Algorithm updates, window updates, etc. are performed here.
+        """
         self.i += 1
         # right =   np.array([0,0,0,0,0,0,0,1,0], np.int8)
         # nothing = np.array([0,0,0,0,0,0,0,0,0], np.int8)
@@ -290,9 +294,32 @@ class MainWindow(QtWidgets.QMainWindow):
         self.update()
         self.game_window._update()
         if self.i % 5 == 0:
-            self.viz_window.ram = self.env.get_ram()
+            ram = self.env.get_ram()
+            tiles = SMB.get_tiles(ram)  # Grab tiles on the screen
+            enemies = SMB.get_enemy_locations(ram)
+            self.viz_window.ram = ram
+            self.viz_window.tiles = tiles
+            self.viz_window.enemies = enemies
             self.viz_window._update()
 
+            self.mario.set_input_as_array(ram, tiles)
+            self.mario.update(ram)
+
+        
+        if self.mario.is_alive:
+            pass
+        else:
+            self._current_individual += 1
+
+            # Is it the next generation?
+            if (self.current_generation > 0 and self._current_individual == self._next_gen_size) or\
+                (self.current_generation == 0 and self._current_individual == self.config.Selection.num_parents):
+                pass
+            
+
+            self.game_window.screen = self.env.reset()
+            self.mario = self.population.individuals[self._current_individual]
+            self.viz.mario = self.mario
         
 
 

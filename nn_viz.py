@@ -1,6 +1,6 @@
 from PyQt5 import QtGui, QtCore, QtWidgets
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QPen
+from PyQt5.QtGui import QPen, QColor, QBrush
 import sys
 from typing import List
 from neural_network import *
@@ -15,12 +15,12 @@ class NeuralNetworkViz(QtWidgets.QWidget):
         self.config = config
         self.horizontal_distance_between_layers = 50
         self.vertical_distance_between_nodes = 10
-        # self.num_neurons_in_largest_layer = max(self.mario.network.layer_nodes)
-        l=[25, 12, 9, 6]
+        l = self.config.NeuralNetwork.hidden_network_architecture + [6]
         self.num_neurons_in_largest_layer = max(l[1:])
         # self.setFixedSize(600,800)
         self.neuron_locations = {}
         self.tile_size = self.config.Graphics.tile_size
+        self.neuron_radius = self.config.Graphics.neuron_radius
 
         # Set all neuron locations for layer 0 (Input) to be at the same point.
         # The reason I do this is because the number of inputs can easily become too many to show on the screen.
@@ -53,7 +53,6 @@ class NeuralNetworkViz(QtWidgets.QWidget):
         painter.setRenderHint(QtGui.QPainter.SmoothPixmapTransform)
         painter.setPen(QPen(Qt.black, 1.0, Qt.SolidLine))
         horizontal_space = 20  # Space between Nodes within the same layer
-        radius = 8
         height = self.frameGeometry().height()
         width = self.frameGeometry().width()
         layer_nodes = self.mario.network.layer_nodes
@@ -65,21 +64,21 @@ class NeuralNetworkViz(QtWidgets.QWidget):
         out = self.mario.network.feed_forward(inputs)  # @TODO: shouldnt need this
 
         active_outputs = np.where(out > 0.5)[0]
-        max_n = self.size[0] // (2* radius + horizontal_space)
+        max_n = self.size[0] // (2* self.neuron_radius + horizontal_space)
         
         # Draw nodes
         for layer, num_nodes in enumerate(layer_nodes[1:], 1):
-            h_offset = (((max_n - num_nodes)) * (2*radius + horizontal_space))/2
+            h_offset = (((max_n - num_nodes)) * (2*self.neuron_radius + horizontal_space))/2
             activations = None
             if layer > 0:
                 activations = self.mario.network.params['A' + str(layer)]
 
             for node in range(num_nodes):
-                x_loc = node * (radius*2 + horizontal_space) + h_offset
+                x_loc = node * (self.neuron_radius*2 + horizontal_space) + h_offset
                 y_loc = v_offset
                 t = (layer, node)
                 if t not in self.neuron_locations:
-                    self.neuron_locations[t] = (x_loc + radius, y_loc)
+                    self.neuron_locations[t] = (x_loc + self.neuron_radius, y_loc)
                 
                 painter.setBrush(QtGui.QBrush(Qt.white, Qt.NoBrush))
                 # Input layer
@@ -96,13 +95,13 @@ class NeuralNetworkViz(QtWidgets.QWidget):
                 # Output layer
                 elif layer == len(layer_nodes) - 1:
                     text = ('U', 'D', 'L', 'R', 'A', 'B')[node]
-                    painter.drawText(h_offset + node * (radius*2 + horizontal_space), v_offset + 2*radius + 2*radius, text)
+                    painter.drawText(h_offset + node * (self.neuron_radius*2 + horizontal_space), v_offset + 2*self.neuron_radius + 2*self.neuron_radius, text)
                     if node in active_outputs:
                         painter.setBrush(QtGui.QBrush(Qt.green))
                     else:
                         painter.setBrush(QtGui.QBrush(Qt.white))
 
-                painter.drawEllipse(x_loc, y_loc, radius*2, radius*2)
+                painter.drawEllipse(x_loc, y_loc, self.neuron_radius*2, self.neuron_radius*2)
             v_offset += 150
 
         # Reset horizontal offset for the weights
@@ -128,4 +127,22 @@ class NeuralNetworkViz(QtWidgets.QWidget):
                     start = self.neuron_locations[(l-1, prev_node)]
                     end = self.neuron_locations[(l, curr_node)]
                     # Offset start[0] by diameter of circle so that the line starts on the right of the circle
-                    painter.drawLine(start[0], start[1] + radius*2, end[0], end[1])
+                    painter.drawLine(start[0], start[1] + self.neuron_radius*2, end[0], end[1])
+        
+        # Draw line straight down
+        color = QColor(255, 0, 217)
+        painter.setPen(QPen(color, 3.0, Qt.SolidLine))
+        painter.setBrush(QBrush(Qt.NoBrush))
+
+        x_start = 5 + 150 + (16/2 * self.tile_size[0])
+        y_start = 5 + (15 * self.tile_size[1])
+        x_end = x_start
+        y_end = y_start + 5 + (2 * self.neuron_radius)
+        painter.drawLine(x_start, y_start, x_end, y_end)
+
+        # Set pen to be smaller and draw pink connections
+        painter.setPen(QPen(color, 1.0, Qt.SolidLine))
+        for nid in range(layer_nodes[1]):
+            start = self.neuron_locations[(1, nid)]
+            painter.drawLine(start[0], start[1], x_end, y_end)
+        
