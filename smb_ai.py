@@ -9,6 +9,8 @@ import sys
 import numpy as np
 from utils import SMB, EnemyType, StaticTileType, ColorMap, DynamicTileType
 from config import Config
+from nn_viz import NeuralNetworkViz
+from mario import Mario
 
 tile_size = (16, 16)
 
@@ -23,11 +25,13 @@ def draw_border(painter: QPainter, size: Tuple[float, float]) -> None:
 
 
 class Visualizer(QtWidgets.QWidget):
-    def __init__(self, parent, size, config: Config):
+    def __init__(self, parent, size, config: Config, nn_viz: NeuralNetworkViz):
         super().__init__(parent)
         self.size = size
         self.config = config
+        self.nn_viz = nn_viz
         self.ram = None
+        self.x_offset = 150
 
     def get_tiles(self):
         return SMB.get_tiles_on_screen(self.ram)
@@ -53,8 +57,18 @@ class Visualizer(QtWidgets.QWidget):
         color = QColor(255, 0, 217)
         painter.setPen(QPen(color, 3.0, Qt.SolidLine))
         painter.setBrush(QBrush(Qt.NoBrush))
-        painter.drawRect(x*tile_width + 5, y*tile_height + 5, width*tile_width, height*tile_height)
+        painter.drawRect(x*tile_width + 5 + self.x_offset, y*tile_height + 5, width*tile_width, height*tile_height)
 
+    def _draw_output_connection(self, painter: QPainter) -> None:
+        color = QColor(255, 0, 217)
+        painter.setPen(QPen(color, 3.0, Qt.SolidLine))
+        painter.setBrush(QBrush(Qt.NoBrush))
+
+        x_start = 5 + 150 + (16/2 * 16)
+        y_start = 5 + (15 * 16)
+        x_end = x_start
+        y_end = y_start + 21 # (5 + 2*8) @TODO: Make the graphics drawing part of config so I can just pass it to all the drawing methods
+        painter.drawLine(x_start, y_start, x_end, y_end)
 
 
     def draw_tiles(self, painter: QPainter):
@@ -84,7 +98,7 @@ class Visualizer(QtWidgets.QWidget):
                 painter.setBrush(QBrush(Qt.white, Qt.SolidPattern))
                 width = tile_size[0]
                 height = tile_size[1]
-                x_start = 5 + (width * col)
+                x_start = 5 + (width * col) + self.x_offset
                 y_start = 5 + (height * row)
 
                 loc = (row, col)
@@ -105,6 +119,8 @@ class Visualizer(QtWidgets.QWidget):
         if not self.ram is None:
             self.draw_tiles(painter)
             self._draw_region_of_interest(painter)
+            self._draw_output_connection(painter)
+            self.nn_viz.show_network(painter)
 
     def _update(self):
         self.update()
@@ -163,7 +179,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.top = 150
         self.left = 150
         self.width = 1100
-        self.height = 500
+        self.height = 700
 
         self.title = 'Super Mario Bros AI'
         self.env = retro.make(game='SuperMarioBros-Nes', state='Level2-1')
@@ -192,10 +208,15 @@ class MainWindow(QtWidgets.QMainWindow):
         self.game_window.screen = screen
         # self.game_window.update()
 
-        self.viz_window = Visualizer(self.centralWidget, (1100-514, 480), self.config)
-        self.viz_window.setGeometry(0, 0, 1100-514, 480)
+
+        mario = Mario()
+        self.viz = NeuralNetworkViz(self.centralWidget, mario, (1100-514, 700))
+
+        self.viz_window = Visualizer(self.centralWidget, (1100-514, 700), self.config, self.viz)
+        self.viz_window.setGeometry(0, 0, 1100-514, 700)
         self.viz_window.setObjectName('viz_window')
         self.viz_window.ram = self.env.get_ram()
+        
 
     def keyPressEvent(self, event):
         k = event.key()
