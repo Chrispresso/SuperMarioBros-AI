@@ -4,7 +4,7 @@ import random
 
 from genetic_algorithm.individual import Individual
 from neural_network import FeedForwardNetwork, linear, sigmoid, tanh, relu, leaky_relu, ActivationFunction, get_activation_by_name
-from utils import SMB, StaticTileType
+from utils import SMB, StaticTileType, EnemyType
 from config import Config
 
 
@@ -29,7 +29,6 @@ class Mario(Individual):
 
         self.config = config
 
-        #@TODO: Set this based off how the input is (2,2,2,2), etc
         u, d, l, r = self.config.NeuralNetwork.inputs_size
         self.u, self.d, self.l, self.r = u, d, l, r
         ud = int(bool(u and d))  # If both u and d directions are non-zero, there is an additional square (Mario)
@@ -51,6 +50,10 @@ class Mario(Individual):
             self.network.params = chromosome
         
         self.is_alive = True
+
+        # Keys correspond with B, NULL, SELECT, START, U, D, L, R, A
+        # index                0  1     2       3      4  5  6  7  8
+        self.buttons_to_press = np.array( [0, 0,    0,      0,     0, 0, 0, 0, 0], np.int8)
 
     @property
     def fitness(self):
@@ -74,17 +77,27 @@ class Mario(Individual):
             for col in range(-self.u, self.d+1):
                 try:
                     t = tiles[(row + mario_row, col + mario_col)]
+                    if isinstance(t, StaticTileType):
+                        if t.value == 0:
+                            arr.append(0)
+                        else:
+                            arr.append(1)
+                    elif isinstance(t, EnemyType):
+                        arr.append(-1)
+                    else:
+                        raise Exception("wit") #@TODO?
                 except:
                     t = StaticTileType(0x00)
-                print('{:02X} '.format(t.value), end = '')
-                arr.append(t.value)
+                    arr.append(0) # Empty
+                
+                print('{:02X} '.format(arr[-1]), end = '')
             print()
         print(arr)
         
         print()
         self.inputs_as_array = np.array(arr).reshape((-1,1)) 
 
-    def update(self, ram) -> bool:
+    def update(self, ram, tiles, buttons, ouput_to_buttons_map) -> bool:
         """
         The main update call for Mario.
         Takes in inputs of surrounding area and feeds through the Neural Network
@@ -94,8 +107,23 @@ class Mario(Individual):
         """
         if self.is_alive:
             self._frames += 1
+        else:
+            return False
 
         if ram[0x0E] in (0x0B, 0x06):
             self.is_alive = False
+            return False
 
-        return self.is_alive
+        self.set_input_as_array(ram, tiles)
+
+        # Calculate the output
+        output = self.network.feed_forward(self.inputs_as_array)
+        threshold = np.where(output > 0.5)[0]  # @TODO: Maybe make threshold part of config?
+        self.buttons_to_press.fill(0)  # Clear
+
+        # Set buttons
+        for b in threshold:
+            self.buttons_to_press[ouput_to_buttons_map[b]] = 1
+
+        return True
+    

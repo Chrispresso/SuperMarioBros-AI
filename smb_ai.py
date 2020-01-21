@@ -289,41 +289,45 @@ class MainWindow(QtWidgets.QMainWindow):
         self.i += 1
         # right =   np.array([0,0,0,0,0,0,0,1,0], np.int8)
         # nothing = np.array([0,0,0,0,0,0,0,0,0], np.int8)
-        ret = self.env.step(self.keys)
+        # ret = self.env.step(self.keys)
+        ret = self.env.step(self.mario.buttons_to_press)
         self.game_window.screen = ret[0]
         # self.viz_window.ram = self.env.get_ram()
         
         self.game_window._update()
-        if self.i % 5 == 0:
-            ram = self.env.get_ram()
-            tiles = SMB.get_tiles(ram)  # Grab tiles on the screen
-            enemies = SMB.get_enemy_locations(ram)
 
-            self.mario.set_input_as_array(ram, tiles)
-            self.mario.update(ram)
+        if self.i % 5 != 0:
+            return
 
-            self.viz_window.ram = ram
-            self.viz_window.tiles = tiles
-            self.viz_window.enemies = enemies
-            self.viz_window._update()
-            # self.viz._update()
+        ram = self.env.get_ram()
+        tiles = SMB.get_tiles(ram)  # Grab tiles on the screen
+        enemies = SMB.get_enemy_locations(ram)
 
-
+        # self.mario.set_input_as_array(ram, tiles)
+        self.mario.update(ram, tiles, self.keys, self.ouput_to_keys_map)
         
-            if self.mario.is_alive:
-                pass
-            else:
-                self._current_individual += 1
 
-                # Is it the next generation?
-                if (self.current_generation > 0 and self._current_individual == self._next_gen_size) or\
-                    (self.current_generation == 0 and self._current_individual == self.config.Selection.num_parents):
-                    pass
-                
+        self.viz_window.ram = ram
+        self.viz_window.tiles = tiles
+        self.viz_window.enemies = enemies
+        self.viz_window._update()
 
-                self.game_window.screen = self.env.reset()
-                self.mario = self.population.individuals[self._current_individual]
-                self.viz.mario = self.mario
+
+    
+        if self.mario.is_alive:
+            pass
+        else:
+            self._current_individual += 1
+
+            # Is it the next generation?
+            if (self.current_generation > 0 and self._current_individual == self._next_gen_size) or\
+                (self.current_generation == 0 and self._current_individual == self.config.Selection.num_parents):
+                self.next_generation()
+            
+
+            self.game_window.screen = self.env.reset()
+            self.mario = self.population.individuals[self._current_individual]
+            self.viz.mario = self.mario
         
 
 

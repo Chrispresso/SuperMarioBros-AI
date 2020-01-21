@@ -60,10 +60,11 @@ class NeuralNetworkViz(QtWidgets.QWidget):
         h_offset = self.x_offset
         v_offset = self.y_offset + 50
         inputs = self.mario.inputs_as_array
-        print(list(inputs.flatten()))
+
         out = self.mario.network.feed_forward(inputs)  # @TODO: shouldnt need this
 
         active_outputs = np.where(out > 0.5)[0]
+        print('network', active_outputs)
         max_n = self.size[0] // (2* self.neuron_radius + horizontal_space)
         
         # Draw nodes
