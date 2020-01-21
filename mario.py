@@ -68,6 +68,7 @@ class Mario(Individual):
 
     def set_input_as_array(self, ram, tiles) -> None:
         mario_row, mario_col = SMB.get_mario_row_col(ram)
+        arr = []
         #@TODO: Where did I mess up the row/col
         for row in range(-self.l, self.r+1):
             for col in range(-self.u, self.d+1):
@@ -76,8 +77,12 @@ class Mario(Individual):
                 except:
                     t = StaticTileType(0x00)
                 print('{:02X} '.format(t.value), end = '')
+                arr.append(t.value)
             print()
+        print(arr)
+        
         print()
+        self.inputs_as_array = np.array(arr).reshape((-1,1)) 
 
     def update(self, ram) -> bool:
         """

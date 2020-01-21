@@ -32,19 +32,19 @@ class NeuralNetworkViz(QtWidgets.QWidget):
             t = (0, nid)
             
             self.neuron_locations[t] = (self.x_offset, self.y_offset)
+
+        self.i = 0
         self.show()
 
 
-    def paintEvent(self, event: QtGui.QPaintEvent) -> None:
-        painter = QtGui.QPainter()
-        painter.begin(self)
+    # def paintEvent(self, event: QtGui.QPaintEvent) -> None:
+    #     painter = QtGui.QPainter()
+    #     painter.begin(self)
 
-        self.show_network(painter)
+    #     self.show_network(painter)
         
-        painter.end()
+    #     painter.end()
 
-    def update(self) -> None:
-        self.repaint()
 
     def show_network(self, painter: QtGui.QPainter):
         painter.setRenderHints(QtGui.QPainter.Antialiasing)
@@ -53,14 +53,14 @@ class NeuralNetworkViz(QtWidgets.QWidget):
         painter.setRenderHint(QtGui.QPainter.SmoothPixmapTransform)
         painter.setPen(QPen(Qt.black, 1.0, Qt.SolidLine))
         horizontal_space = 20  # Space between Nodes within the same layer
-        height = self.frameGeometry().height()
-        width = self.frameGeometry().width()
+        
         layer_nodes = self.mario.network.layer_nodes
 
         default_offset = self.x_offset
         h_offset = self.x_offset
         v_offset = self.y_offset + 50
         inputs = self.mario.inputs_as_array
+        print(list(inputs.flatten()))
         out = self.mario.network.feed_forward(inputs)  # @TODO: shouldnt need this
 
         active_outputs = np.where(out > 0.5)[0]
