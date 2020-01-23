@@ -2,6 +2,7 @@ import retro
 from PyQt5 import QtGui, QtWidgets
 from PyQt5.QtGui import QPainter, QBrush, QPen, QPolygonF, QColor, QImage, QPixmap
 from PyQt5.QtCore import Qt, QPointF, QTimer, QRect
+from PyQt5.QtWidgets import QVBoxLayout, QHBoxLayout, QLabel
 from PIL import Image
 from PIL.ImageQt import ImageQt
 from typing import Tuple, List
@@ -14,6 +15,10 @@ from mario import Mario
 
 from genetic_algorithm.individual import Individual
 from genetic_algorithm.population import Population
+
+
+normal_font = QtGui.QFont('Times', 11, QtGui.QFont.Normal)
+font_bold = QtGui.QFont('Times', 11, QtGui.QFont.Bold)
 
 
 def draw_border(painter: QPainter, size: Tuple[float, float]) -> None:
@@ -162,8 +167,51 @@ class GameWindow(QtWidgets.QWidget):
         self.update()
 
 class InformationWidget(QtWidgets.QWidget):
-    def __init__(self, parent, size):
+    def __init__(self, parent, size, config):
         super().__init__(parent)
+        self.size = size
+        self.config = config
+
+        self.grid = QtWidgets.QGridLayout()
+        self.grid.setContentsMargins(0, 0, 0, 0)
+        self._init_window()
+        self.setLayout(self.grid)
+
+    def _init_window(self) -> None:
+        info_vbox = QVBoxLayout()
+        info_vbox.setContentsMargins(0, 0, 0, 0)
+
+        # Current Generation
+        generation_label = QLabel()
+        generation_label.setFont(font_bold)
+        generation_label.setText('Generation:')
+        generation_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        self.generation = QLabel()
+        self.generation.setFont(normal_font)
+        self.generation.setText("<font color='red'>" + '1' + '</font>')
+        self.generation.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        hbox_generation = QHBoxLayout()
+        hbox_generation.setContentsMargins(5, 0, 0, 0)
+        hbox_generation.addWidget(generation_label, 1)
+        hbox_generation.addWidget(self.generation, 1)
+        info_vbox.addLayout(hbox_generation)
+
+        # Current individual
+        current_individual_label = QLabel()
+        current_individual_label.setFont(font_bold)
+        current_individual_label.setText('Individual:')
+        current_individual_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        self.current_individual = QLabel()
+        self.current_individual.setFont(normal_font)
+        self.current_individual.setText('1/{}'.format(self.config.Selection.num_parents))
+        self.current_individual.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        hbox_current_individual = QHBoxLayout()
+        hbox_current_individual.setContentsMargins(5, 0, 0, 0)
+        hbox_current_individual.addWidget(current_individual_label, 1)
+        hbox_current_individual.addWidget(self.current_individual, 1)
+        info_vbox.addLayout(hbox_current_individual)
+
+        self.grid.addLayout(info_vbox, 0, 0)
 
 
 
@@ -244,6 +292,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.viz_window.setObjectName('viz_window')
         self.viz_window.ram = self.env.get_ram()
         
+        # self.width = 1100
+        # self.height = 700
+        self.info_window = InformationWidget(self.centralWidget, (514, 700-480), self.config)
+        self.info_window.setGeometry(QRect(1100-514, 480, 514, 700-480))
 
     def keyPressEvent(self, event):
         k = event.key()
