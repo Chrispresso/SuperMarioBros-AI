@@ -6,7 +6,9 @@ from PyQt5.QtWidgets import QVBoxLayout, QHBoxLayout, QLabel
 from PIL import Image
 from PIL.ImageQt import ImageQt
 from typing import Tuple, List
+import random
 import sys
+import math
 import numpy as np
 from utils import SMB, EnemyType, StaticTileType, ColorMap, DynamicTileType
 from config import Config
@@ -15,7 +17,9 @@ from mario import Mario
 
 from genetic_algorithm.individual import Individual
 from genetic_algorithm.population import Population
-
+from genetic_algorithm.selection import elitism_selection, tournament_selection, roulette_wheel_selection
+from genetic_algorithm.crossover import simulated_binary_crossover as SBX
+from genetic_algorithm.mutation import gaussian_mutation
 
 normal_font = QtGui.QFont('Times', 11, QtGui.QFont.Normal)
 font_bold = QtGui.QFont('Times', 11, QtGui.QFont.Bold)
@@ -211,6 +215,36 @@ class InformationWidget(QtWidgets.QWidget):
         hbox_current_individual.addWidget(self.current_individual, 1)
         info_vbox.addLayout(hbox_current_individual)
 
+        # Best fitness
+        best_fitness_label = QLabel()
+        best_fitness_label.setFont(font_bold)
+        best_fitness_label.setText('Best Fitness:')
+        best_fitness_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        self.best_fitness = QLabel()
+        self.best_fitness.setFont(normal_font)
+        self.best_fitness.setText('0')
+        self.best_fitness.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        hbox_best_fitness = QHBoxLayout()
+        hbox_best_fitness.setContentsMargins(5, 0, 0, 0)
+        hbox_best_fitness.addWidget(best_fitness_label, 1)
+        hbox_best_fitness.addWidget(self.best_fitness, 1)
+        info_vbox.addLayout(hbox_best_fitness) 
+
+        # Max Distance
+        max_distance_label = QLabel()
+        max_distance_label.setFont(font_bold)
+        max_distance_label.setText('Max Distance:')
+        max_distance_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        self.max_distance = QLabel()
+        self.max_distance.setFont(normal_font)
+        self.max_distance.setText('0')
+        self.max_distance.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        hbox_max_distance = QHBoxLayout()
+        hbox_max_distance.setContentsMargins(5, 0, 0, 0)
+        hbox_max_distance.addWidget(max_distance_label, 1)
+        hbox_max_distance.addWidget(self.max_distance, 1)
+        info_vbox.addLayout(hbox_max_distance)  
+
         self.grid.addLayout(info_vbox, 0, 0)
 
 
@@ -257,6 +291,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.mario = self.population.individuals[self._current_individual]
         self.current_generation = 0
+        self.max_distance = 0  # Track farthest traveled in level
+        self.max_fitness = 0.0
 
         # Determine the size of the next generation based off selection type
         self._next_gen_size = None
@@ -331,7 +367,120 @@ class MainWindow(QtWidgets.QMainWindow):
 
         
     def next_generation(self) -> None:
-        pass
+        self._increment_generation()
+        self._current_individual = 0
+        self.info_window.current_individual.setText('{}/{}'.format(self._current_individual + 1, self._next_gen_size))
+
+        # Calculate fitness
+        for individual in self.population.individuals:
+            individual.calculate_fitness()
+
+        self.population.individuals = elitism_selection(self.population, self.config.Selection.num_parents)
+
+        random.shuffle(self.population.individuals)
+        next_pop = []
+
+        # Parents + offspring
+        if self.config.Selection.selection_type == 'plus':
+            # Decrement lifespan
+            for individual in self.population.individuals:
+                individual.lifespan -= 1
+
+            for individual in self.population.individuals:
+                config = individual.config
+                chromosome = individual.network.params
+                hidden_layer_architecture = individual.hidden_layer_architecture
+                hidden_activation = individual.hidden_activation
+                output_activation = individual.output_activation
+                lifespan = individual.lifespan
+
+                # If the indivdual would be alve, add it to the next pop
+                if lifespan > 0:
+                    m = Mario(config, chromosome, hidden_layer_architecture, hidden_activation, output_activation, lifespan)
+                    next_pop.append(m)
+
+        while len(next_pop) < self._next_gen_size:
+            selection = self.config.Crossover.crossover_selection
+            if selection == 'tournament':
+                p1, p2 = tournament_selection(self.population, 2, self.config.Crossover.tournament_size)
+            elif selection == 'roulette':
+                p1, p2 = roulette_wheel_selection(self.population, 2)
+            else:
+                raise Exception('crossover_selection "{}" is not supported'.format(selection))
+
+            L = len(p1.network.layer_nodes)
+            c1_params = {}
+            c2_params = {}
+
+            # Each W_l and b_l are treated as their own chromosome.
+            # Because of this I need to perform crossover/mutation on each chromosome between parents
+            for l in range(1, L):
+                p1_W_l = p1.network.params['W' + str(l)]
+                p2_W_l = p2.network.params['W' + str(l)]  
+                p1_b_l = p1.network.params['b' + str(l)]
+                p2_b_l = p2.network.params['b' + str(l)]
+
+                # Crossover
+                # @NOTE: I am choosing to perform the same type of crossover on the weights and the bias.
+                c1_W_l, c2_W_l, c1_b_l, c2_b_l = self._crossover(p1_W_l, p2_W_l, p1_b_l, p2_b_l)
+
+                # Mutation
+                # @NOTE: I am choosing to perform the same type of mutation on the weights and the bias.
+                self._mutation(c1_W_l, c2_W_l, c1_b_l, c2_b_l)
+
+                # Assign children from crossover/mutation
+                c1_params['W' + str(l)] = c1_W_l
+                c2_params['W' + str(l)] = c2_W_l
+                c1_params['b' + str(l)] = c1_b_l
+                c2_params['b' + str(l)] = c2_b_l
+
+                #  Clip to [-1, 1]
+                np.clip(c1_params['W' + str(l)], -1, 1, out=c1_params['W' + str(l)])
+                np.clip(c2_params['W' + str(l)], -1, 1, out=c2_params['W' + str(l)])
+                np.clip(c1_params['b' + str(l)], -1, 1, out=c1_params['b' + str(l)])
+                np.clip(c2_params['b' + str(l)], -1, 1, out=c2_params['b' + str(l)])
+
+
+            c1 = Mario(self.config, c1_params, p1.hidden_layer_architecture, p1.hidden_activation, p1.output_activation, p1.lifespan)
+            c2 = Mario(self.config, c2_params, p2.hidden_layer_architecture, p2.hidden_activation, p2.output_activation, p2.lifespan)
+
+            next_pop.extend([c1, c2])
+
+        # Set next generation
+        random.shuffle(next_pop)
+        self.population.individuals = next_pop
+
+    def _crossover(self, parent1_weights: np.ndarray, parent2_weights: np.ndarray,
+                   parent1_bias: np.ndarray, parent2_bias: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        eta = self.config.Crossover.sbx_eta
+
+        # SBX weights and bias
+        child1_weights, child2_weights = SBX(parent1_weights, parent2_weights, eta)
+        child1_bias, child2_bias =  SBX(parent1_bias, parent2_bias, eta)
+
+        return child1_weights, child2_weights, child1_bias, child2_bias
+
+    def _mutation(self, child1_weights: np.ndarray, child2_weights: np.ndarray,
+                  child1_bias: np.ndarray, child2_bias: np.ndarray) -> None:
+        mutation_rate = self.config.Mutation.mutation_rate
+        scale = self.config.Mutation.gaussian_mutation_scale
+
+        if self.config.Mutation.mutation_rate_type == 'dynamic':
+            mutation_rate = mutation_rate / math.sqrt(self.current_generation + 1)
+        
+        # Mutate weights
+        gaussian_mutation(child1_weights, mutation_rate, scale=scale)
+        gaussian_mutation(child2_weights, mutation_rate, scale=scale)
+
+        # Mutate bias
+        gaussian_mutation(child1_bias, mutation_rate, scale=scale)
+        gaussian_mutation(child2_bias, mutation_rate, scale=scale)
+
+    def _increment_generation(self) -> None:
+        self.current_generation += 1
+        txt = "<font color='red'>" + str(self.current_generation + 1) + '</font>'
+        self.info_window.generation.setText(txt)
+
 
     def _update(self) -> None:
         """
@@ -367,14 +516,32 @@ class MainWindow(QtWidgets.QMainWindow):
 
     
         if self.mario.is_alive:
-            pass
+            # New farthest distance?
+            if self.mario.farthest_x > self.max_distance:
+                self.max_distance = self.mario.farthest_x
+                self.info_window.max_distance.setText(str(self.max_distance))
         else:
+            self.mario.calculate_fitness()
+            fitness = self.mario.fitness
+            
+            if fitness > self.max_fitness:
+                self.max_fitness = fitness
+                max_fitness = '{:.2f}'.format(self.max_fitness)
+                self.info_window.best_fitness.setText(max_fitness)
+
+
             self._current_individual += 1
 
             # Is it the next generation?
             if (self.current_generation > 0 and self._current_individual == self._next_gen_size) or\
                 (self.current_generation == 0 and self._current_individual == self.config.Selection.num_parents):
                 self.next_generation()
+            else:
+                if self.current_generation == 0:
+                    current_pop = self.config.Selection.num_parents
+                else:
+                    current_pop = self._next_gen_size
+                self.info_window.current_individual.setText('{}/{}'.format(self._current_individual + 1, current_pop))
             
 
             self.game_window.screen = self.env.reset()

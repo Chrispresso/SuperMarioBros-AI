@@ -38,7 +38,7 @@ class Mario(Individual):
         self.inputs_as_array = np.zeros((num_inputs, 1))
         self.network_architecture = [num_inputs]                          # Input Nodes
         self.network_architecture.extend(self.hidden_layer_architecture)  # Hidden Layer Ndoes
-        self.network_architecture.append(6)                               # 6 Outputs ['u', 'd', 'l', 'r', 'a', 'b']
+        self.network_architecture.append(6)                        # 6 Outputs ['u', 'd', 'l', 'r', 'a', 'b']
 
         self.network = FeedForwardNetwork(self.network_architecture,
                                           get_activation_by_name(self.hidden_activation),
@@ -54,6 +54,8 @@ class Mario(Individual):
         # Keys correspond with B, NULL, SELECT, START, U, D, L, R, A
         # index                0  1     2       3      4  5  6  7  8
         self.buttons_to_press = np.array( [0, 0,    0,      0,     0, 0, 0, 0, 0], np.int8)
+        self.farthest_x = 0
+
 
     @property
     def fitness(self):
@@ -68,6 +70,9 @@ class Mario(Individual):
 
     def encode_chromosome(self):
         pass
+
+    def calculate_fitness(self):
+        self._fitness = 12
 
     def set_input_as_array(self, ram, tiles) -> None:
         mario_row, mario_col = SMB.get_mario_row_col(ram)
@@ -90,11 +95,11 @@ class Mario(Individual):
                     t = StaticTileType(0x00)
                     arr.append(0) # Empty
                 
-                print('{:02X} '.format(arr[-1]), end = '')
-            print()
-        print(arr)
+                # print('{:02X} '.format(arr[-1]), end = '')
+            # print()
+        # print(arr)
         
-        print()
+        # print()
         self.inputs_as_array = np.array(arr).reshape((-1,1)) 
 
     def update(self, ram, tiles, buttons, ouput_to_buttons_map) -> bool:
@@ -107,6 +112,21 @@ class Mario(Individual):
         """
         if self.is_alive:
             self._frames += 1
+            x_dist = SMB.get_mario_location_in_level(ram).x
+            # If we made it further, reset stats
+            if x_dist > self.farthest_x:
+                self.farthest_x = x_dist
+                self._frames_since_progress = 0
+            else:
+                self._frames_since_progress += 1
+
+            #@TODO: set this as part of config
+            if self._frames_since_progress > 60:
+                print('killin')
+                self.is_alive = False
+                return False
+
+            # print(SMB.get_mario_location_in_level(ram).x)
         else:
             return False
 

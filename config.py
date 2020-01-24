@@ -19,6 +19,11 @@ _params = {
         'output_node_activation' : str,
     },
 
+    # Genetic Algorithm
+    'GeneticAlgorithm': {
+        'fitness_func': type(lambda : None)
+    },
+
     # Crossover Params
     'Crossover': {
         'probability_sbx': float,
@@ -117,6 +122,11 @@ class Config(object):
                         self._config_dict[section][k] = tuple(cast(val) for val in v.split(','))
                     else:
                         raise Exception('Expected a 2 tuple value describing that it is to be parse as a tuple and the type to cast it as')
+                elif 'lambda' in v:
+                    try:
+                        self._config_dict[section][k] = eval(v)
+                    except:
+                        pass
                 # Otherwise parse normally
                 else:
                     self._config_dict[section][k] = _type(v)
