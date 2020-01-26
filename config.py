@@ -93,7 +93,7 @@ class Config(object):
 
         with open(self.filename) as f:
             self._config_text_file = f.read()
-            
+
         self._config = configparser.ConfigParser(inline_comment_prefixes='#')
         self._config.read(self.filename)
 
@@ -151,8 +151,10 @@ class Config(object):
             for k, v in self._config_dict[section].items():
                 # If it contains '.' and is not a number
                 if not self._is_number(v) and '.' in v:
-                    referenced_value = self._get_reference_from_dict(v)
-                    self._config_dict[section][k] = referenced_value
+                    # Make sure it's not a function
+                    if _params[section][k] != type(lambda x: None):
+                        referenced_value = self._get_reference_from_dict(v)
+                        self._config_dict[section][k] = referenced_value
 
     def _get_reference_from_dict(self, reference: str) -> Any:
         path = reference.split('.')
