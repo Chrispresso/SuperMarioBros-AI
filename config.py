@@ -11,6 +11,11 @@ _params = {
         'neuron_radius': float,
     },
 
+    # Statistics Params
+    'Statistics': {
+        'save_best_individual_from_generation': str,
+    },
+
     # NeuralNetwork Params
     'NeuralNetwork': {
         'inputs_size': (tuple, int),
@@ -86,6 +91,9 @@ class Config(object):
         if not os.path.isfile(self.filename):
             raise Exception('No file found named "{}"'.format(self.filename))
 
+        with open(self.filename) as f:
+            self._config_text_file = f.read()
+            
         self._config = configparser.ConfigParser(inline_comment_prefixes='#')
         self._config.read(self.filename)
 

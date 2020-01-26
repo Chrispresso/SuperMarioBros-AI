@@ -13,7 +13,7 @@ import numpy as np
 from utils import SMB, EnemyType, StaticTileType, ColorMap, DynamicTileType
 from config import Config
 from nn_viz import NeuralNetworkViz
-from mario import Mario
+from mario import Mario, save_mario
 
 from genetic_algorithm.individual import Individual
 from genetic_algorithm.population import Population
@@ -375,6 +375,12 @@ class MainWindow(QtWidgets.QMainWindow):
         for individual in self.population.individuals:
             individual.calculate_fitness()
 
+        if self.config.Statistics.save_best_individual_from_generation:
+            folder = self.config.Statistics.save_best_individual_from_generation
+            best_ind_name = 'best_ind_gen{}'.format(self.current_generation - 1)
+            best_ind = self.population.fittest_individual
+            save_mario(folder, best_ind_name, best_ind, )
+
         self.population.individuals = elitism_selection(self.population, self.config.Selection.num_parents)
 
         random.shuffle(self.population.individuals)
@@ -490,8 +496,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.i += 1
         # right =   np.array([0,0,0,0,0,0,0,1,0], np.int8)
         # nothing = np.array([0,0,0,0,0,0,0,0,0], np.int8)
-        # ret = self.env.step(self.keys)
-        ret = self.env.step(self.mario.buttons_to_press)
+        ret = self.env.step(self.keys)
+        # ret = self.env.step(self.mario.buttons_to_press)
         self.game_window.screen = ret[0]
         # self.viz_window.ram = self.env.get_ram()
         

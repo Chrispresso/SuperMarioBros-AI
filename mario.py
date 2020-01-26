@@ -1,11 +1,13 @@
 import numpy as np
 from typing import Tuple, Optional, Union, Set, Dict, Any, List
 import random
+import os
 
 from genetic_algorithm.individual import Individual
 from neural_network import FeedForwardNetwork, linear, sigmoid, tanh, relu, leaky_relu, ActivationFunction, get_activation_by_name
 from utils import SMB, StaticTileType, EnemyType
 from config import Config
+
 
 
 class Mario(Individual):
@@ -122,15 +124,15 @@ class Mario(Individual):
 
             #@TODO: set this as part of config
             if self._frames_since_progress > 60:
-                print('killin')
                 self.is_alive = False
                 return False
 
             # print(SMB.get_mario_location_in_level(ram).x)
+            
         else:
             return False
 
-        if ram[0x0E] in (0x0B, 0x06):
+        if ram[0x0E] in (0x0B, 0x06) or ram[0xB5] == 2:
             self.is_alive = False
             return False
 
@@ -147,3 +149,27 @@ class Mario(Individual):
 
         return True
     
+def save_mario(population_folder: str, individual_name: str, mario: Mario) -> None:
+    # Make population folder if it doesnt exist
+    if not os.path.exists(population_folder):
+        os.makedirs(population_folder)
+
+    # Save settings.config
+    if 'settings.config' not in os.listdir(population_folder):
+        with open(os.path.join(population_folder, 'settings.config'), 'w') as config_file:
+            config_file.write(mario.config._config_text_file)
+    
+    # Make a directory for the individual
+    individual_dir = os.path.join(population_folder, individual_name)
+    os.makedirs(individual_dir)
+
+    L = len(mario.network.layer_nodes)
+    for l in range(1, L):
+        w_name = 'W' + str(l)
+        b_name = 'b' + str(l)
+
+        weights = mario.network.params[w_name]
+        bias = mario.network.params[b_name]
+
+        np.save(os.path.join(individual_dir, w_name), weights)
+        np.save(os.path.join(individual_dir, b_name), bias)

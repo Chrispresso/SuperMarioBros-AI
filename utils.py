@@ -204,6 +204,16 @@ class SMB(object):
         return Point(mario_x, mario_y)
 
     @classmethod
+    def get_mario_score(cls, ram: np.ndarray) -> int:
+        multipllier = 10
+        score = 0
+        for loc in range(0x07DC, 0x07D7-1, -1):
+            score += ram[loc]*multipllier
+            multipllier *= 10
+
+        return score
+
+    @classmethod
     def get_mario_location_on_screen(cls, ram: np.ndarray):
         mario_x = ram[cls.RAMLocations.Player_X_Position_Screen_Offset.value] 
         mario_y = ram[0xce] * ram[0xb5] + cls.sprite.height  # @TODO: Change this to screen and not level

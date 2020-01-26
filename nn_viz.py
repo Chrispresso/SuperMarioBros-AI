@@ -64,7 +64,6 @@ class NeuralNetworkViz(QtWidgets.QWidget):
         out = self.mario.network.feed_forward(inputs)  # @TODO: shouldnt need this
 
         active_outputs = np.where(out > 0.5)[0]
-        print('network', active_outputs)
         max_n = self.size[0] // (2* self.neuron_radius + horizontal_space)
         
         # Draw nodes
