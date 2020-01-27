@@ -13,7 +13,7 @@ import numpy as np
 from utils import SMB, EnemyType, StaticTileType, ColorMap, DynamicTileType
 from config import Config
 from nn_viz import NeuralNetworkViz
-from mario import Mario, save_mario, get_num_trainable_parameters, get_num_inputs
+from mario import Mario, save_mario, save_stats, get_num_trainable_parameters, get_num_inputs
 
 from genetic_algorithm.individual import Individual
 from genetic_algorithm.population import Population
@@ -485,6 +485,10 @@ class MainWindow(QtWidgets.QMainWindow):
             best_ind_name = 'best_ind_gen{}'.format(self.current_generation - 1)
             best_ind = self.population.fittest_individual
             save_mario(folder, best_ind_name, best_ind)
+
+        if self.config.Statistics.save_population_stats:
+            fname = self.config.Statistics.save_population_stats
+            save_stats(self.population, fname)
 
         self.population.individuals = elitism_selection(self.population, self.config.Selection.num_parents)
 

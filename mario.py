@@ -2,8 +2,10 @@ import numpy as np
 from typing import Tuple, Optional, Union, Set, Dict, Any, List
 import random
 import os
+import csv
 
 from genetic_algorithm.individual import Individual
+from genetic_algorithm.population import Population
 from neural_network import FeedForwardNetwork, linear, sigmoid, tanh, relu, leaky_relu, ActivationFunction, get_activation_by_name
 from utils import SMB, StaticTileType, EnemyType
 from config import Config
@@ -189,6 +191,105 @@ def save_mario(population_folder: str, individual_name: str, mario: Mario) -> No
 
         np.save(os.path.join(individual_dir, w_name), weights)
         np.save(os.path.join(individual_dir, b_name), bias)
+
+def _calc_stats(data: List[Union[int, float]]) -> Tuple[float, float, float, float, float]:
+    mean = np.mean(data)
+    median = np.median(data)
+    std = np.std(data)
+    _min = float(min(data))
+    _max = float(max(data))
+
+    return (mean, median, std, _min, _max)
+
+def save_stats(population: Population, fname: str):
+    directory = os.path.dirname(fname)
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+
+    f = fname
+
+    frames = [individual._frames for individual in population.individuals]
+    max_distance = [individual.farthest_x for individual in population.individuals]
+    fitness = [individual.fitness for individual in population.individuals]
+
+    write_header = True
+    if os.path.exists(f):
+        write_header = False
+
+    trackers = [('frames', frames),
+                ('distance', max_distance),
+                ('fitness', fitness)
+                ]
+    stats = ['mean', 'median', 'std', 'min', 'max']
+
+    header = [t[0] + '_' + s for t in trackers for s in stats]
+
+    with open(f, 'a') as csvfile:
+        writer = csv.DictWriter(csvfile, fieldnames=header, delimiter=',')
+        if write_header:
+            writer.writeheader()
+
+        row = {}
+        # Create a row to insert into csv
+        for tracker_name, tracker_object in trackers:
+            curr_stats = _calc_stats(tracker_object)
+            for curr_stat, stat_name in zip(curr_stats, stats):
+                entry_name = '{}_{}'.format(tracker_name, stat_name)
+                row[entry_name] = curr_stat
+
+        # Write row
+        writer.writerow(row)
+
+def load_stats(path_to_stats: str, normalize: Optional[bool] = False):
+    data = {}
+
+    fieldnames = None
+    trackers_stats = None
+    trackers = None
+    stats_names = None
+
+    with open(path_to_stats, 'r') as csvfile:
+        reader = csv.DictReader(csvfile)
+
+        fieldnames = reader.fieldnames
+        trackers_stats = [f.split('_') for f in fieldnames]
+        trackers = set(ts[0] for ts in trackers_stats)
+        stats_names = set(ts[1] for ts in trackers_stats)
+        
+        for tracker, stat_name in trackers_stats:
+            if tracker not in data:
+                data[tracker] = {}
+            
+            if stat_name not in data[tracker]:
+                data[tracker][stat_name] = []
+
+        for line in reader:
+            for tracker in trackers:
+                for stat_name in stats_names:
+                    value = float(line['{}_{}'.format(tracker, stat_name)])
+                    data[tracker][stat_name].append(value)
+        
+    if normalize:
+        factors = {}
+        for tracker in trackers:
+            factors[tracker] = {}
+            for stat_name in stats_names:
+                factors[tracker][stat_name] = 1.0
+
+        for tracker in trackers:
+            for stat_name in stats_names:
+                max_val = max([abs(d) for d in data[tracker][stat_name]])
+                if max_val == 0:
+                    max_val = 1
+                factors[tracker][stat_name] = float(max_val)
+
+        for tracker in trackers:
+            for stat_name in stats_names:
+                factor = factors[tracker][stat_name]
+                d = data[tracker][stat_name]
+                data[tracker][stat_name] = [val / factor for val in d]
+
+    return data
 
 def get_num_inputs(config: Config) -> int:
     u, d, l, r = config.NeuralNetwork.inputs_size

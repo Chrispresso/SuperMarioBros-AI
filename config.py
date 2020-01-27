@@ -14,6 +14,7 @@ _params = {
     # Statistics Params
     'Statistics': {
         'save_best_individual_from_generation': str,
+        'save_population_stats': str,
     },
 
     # NeuralNetwork Params
@@ -99,7 +100,7 @@ class Config(object):
 
         self._verify_sections()
         self._create_dict_from_config()
-        self._parse_references_if_needed()
+        # self._parse_references_if_needed()
         self._set_dict_types()
         dot_notation = DotNotation(self._config_dict)
         self.__dict__.update(dot_notation.__dict__)
