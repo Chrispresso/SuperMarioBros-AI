@@ -364,7 +364,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.height = 700
 
         self.title = 'Super Mario Bros AI'
-        self.env = retro.make(game='SuperMarioBros-Nes', state='Level2-1')
+        self.env = retro.make(game='SuperMarioBros-Nes', state='Level1-1')
 
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._update)
@@ -605,8 +605,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.i += 1
         # right =   np.array([0,0,0,0,0,0,0,1,0], np.int8)
         # nothing = np.array([0,0,0,0,0,0,0,0,0], np.int8)
-        # ret = self.env.step(self.keys)  #@TODO: Could allow human to play
-        ret = self.env.step(self.mario.buttons_to_press)
+        ret = self.env.step(self.keys)  #@TODO: Could allow human to play
+        # ret = self.env.step(self.mario.buttons_to_press)
         self.game_window.screen = ret[0]
         # self.viz_window.ram = self.env.get_ram()
         

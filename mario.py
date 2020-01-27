@@ -56,6 +56,7 @@ class Mario(Individual):
         self.is_alive = True
         self.x_dist = None
         self.game_score = None
+        self.did_win = False
 
         # Keys correspond with             B, NULL, SELECT, START, U, D, L, R, A
         # index                            0  1     2       3      4  5  6  7  8
@@ -82,7 +83,7 @@ class Mario(Individual):
         distance = self.x_dist
         score = self.game_score
 
-        self._fitness = self.config.GeneticAlgorithm.fitness_func(frames, distance, score)
+        self._fitness = self.config.GeneticAlgorithm.fitness_func(frames, distance, score, self.did_win)
 
     def set_input_as_array(self, ram, tiles) -> None:
         mario_row, mario_col = SMB.get_mario_row_col(ram)
@@ -133,6 +134,11 @@ class Mario(Individual):
             self._frames += 1
             self.x_dist = SMB.get_mario_location_in_level(ram).x
             self.game_score = SMB.get_mario_score(ram)
+            # Sliding down flag pole
+            if ram[0x001D] == 3:
+                self.did_win = True
+                self.is_alive = False
+                return False
             # If we made it further, reset stats
             if self.x_dist > self.farthest_x:
                 self.farthest_x = self.x_dist
