@@ -334,21 +334,27 @@ class SMB(object):
                 x, y = x_pos, y_pos
                 page = (x // 256) % 2
                 sub_x = (x % 256) // 16
-                sub_y = (y - 32) // 16
+                sub_y = (y - 32) // 16                
                 addr = 0x500 + page*208 + sub_y*16 + sub_x
-                if not q:
-                    print('{:02X}'.format(ram[addr]), end=' ')
+                
+                if row < 2:
+                    tiles[loc] =  StaticTileType(0x00)
+                else:
 
-                try:
-                    tiles[loc] = StaticTileType(tile)
-                except:
-                    tiles[loc] = StaticTileType(0x01)
-                for enemy in enemies:
-                    ex = enemy.location.x
-                    ey = enemy.location.y + 8
-                    # print(ex, ey)
-                    if abs(x_pos - ex) <=8 and abs(y_pos - ey) <=8:
-                        tiles[loc] = EnemyType(0x06)
+                    try:
+                        tiles[loc] = StaticTileType(tile)
+                    except:
+                        tiles[loc] = StaticTileType(0x01)
+                    for enemy in enemies:
+                        ex = enemy.location.x
+                        ey = enemy.location.y + 8
+                        # print(ex, ey)
+                        if abs(x_pos - ex) <=8 and abs(y_pos - ey) <=8:
+                            tiles[loc] = EnemyType(0x06)
+
+                if not q:
+                    _q = tiles[loc].value
+                    print('{:02X}'.format(_q), end=' ')
 
                 # if abs((x_start + x_pos) - mx) <=8 and abs(y_pos - my) <= 8:
                 #     tiles[loc] = DynamicTileType(0xAA)

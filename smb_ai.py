@@ -13,7 +13,7 @@ import numpy as np
 from utils import SMB, EnemyType, StaticTileType, ColorMap, DynamicTileType
 from config import Config
 from nn_viz import NeuralNetworkViz
-from mario import Mario, save_mario
+from mario import Mario, save_mario, get_num_trainable_parameters, get_num_inputs
 
 from genetic_algorithm.individual import Individual
 from genetic_algorithm.population import Population
@@ -179,11 +179,15 @@ class InformationWidget(QtWidgets.QWidget):
         self.grid = QtWidgets.QGridLayout()
         self.grid.setContentsMargins(0, 0, 0, 0)
         self._init_window()
+        # self.grid.setSpacing(20)
         self.setLayout(self.grid)
+        
 
     def _init_window(self) -> None:
         info_vbox = QVBoxLayout()
         info_vbox.setContentsMargins(0, 0, 0, 0)
+        ga_vbox = QVBoxLayout()
+        ga_vbox.setContentsMargins(0, 0, 0, 0)
 
         # Current Generation
         generation_label = QLabel()
@@ -243,9 +247,109 @@ class InformationWidget(QtWidgets.QWidget):
         hbox_max_distance.setContentsMargins(5, 0, 0, 0)
         hbox_max_distance.addWidget(max_distance_label, 1)
         hbox_max_distance.addWidget(self.max_distance, 1)
-        info_vbox.addLayout(hbox_max_distance)  
+        info_vbox.addLayout(hbox_max_distance)
+
+        # Num inputs
+        num_inputs_label = QLabel()
+        num_inputs_label.setFont(font_bold)
+        num_inputs_label.setText('Num Inputs:')
+        num_inputs_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        num_inputs = QLabel()
+        num_inputs.setFont(normal_font)
+        num_inputs.setText(str(get_num_inputs(self.config)))
+        num_inputs.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        hbox_num_inputs = QHBoxLayout()
+        hbox_num_inputs.setContentsMargins(5, 0, 0, 0)
+        hbox_num_inputs.addWidget(num_inputs_label, 1)
+        hbox_num_inputs.addWidget(num_inputs, 1)
+        info_vbox.addLayout(hbox_num_inputs)
+
+        # Trainable params
+        trainable_params_label = QLabel()
+        trainable_params_label.setFont(font_bold)
+        trainable_params_label.setText('Trainable Params:')
+        trainable_params_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        trainable_params = QLabel()
+        trainable_params.setFont(normal_font)
+        trainable_params.setText(str(get_num_trainable_parameters(self.config)))
+        trainable_params.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        hbox_trainable_params = QHBoxLayout()
+        hbox_trainable_params.setContentsMargins(5, 0, 0, 0)
+        hbox_trainable_params.addWidget(trainable_params_label, 1)
+        hbox_trainable_params.addWidget(trainable_params, 1)
+        info_vbox.addLayout(hbox_trainable_params)
+
+        # Selection
+        selection_type = self.config.Selection.selection_type
+        num_parents = self.config.Selection.num_parents
+        num_offspring = self.config.Selection.num_offspring
+        if selection_type == 'comma':
+            selection_txt = '{}, {}'.format(num_parents, num_offspring)
+        elif selection_type == 'plus':
+            selection_txt = '{} + {}'.format(num_parents, num_offspring)
+        else:
+            raise Exception('Unkown Selection type "{}"'.format(selection_type))
+        selection_hbox = self._create_hbox('Offspring:', font_bold, selection_txt, normal_font)
+        ga_vbox.addLayout(selection_hbox)
+
+        # Lifespan
+        lifespan = self.config.Selection.lifespan
+        lifespan_txt = 'Infinite' if lifespan == np.inf else str(lifespan)
+        lifespan_hbox = self._create_hbox('Lifespan:', font_bold, lifespan_txt, normal_font)
+        ga_vbox.addLayout(lifespan_hbox)
+
+        # Mutation rate
+        mutation_rate = self.config.Mutation.mutation_rate
+        mutation_type = self.config.Mutation.mutation_rate_type.capitalize()
+        mutation_txt = '{} {}% '.format(mutation_type, str(round(mutation_rate*100, 2)))
+        mutation_hbox = self._create_hbox('Mutation:', font_bold, mutation_txt, normal_font)
+        ga_vbox.addLayout(mutation_hbox)
+
+        # Crossover
+        crossover_selection = self.config.Crossover.crossover_selection
+        if crossover_selection == 'roulette':
+            crossover_txt = 'Roulette'
+        elif crossover_selection == 'tournament':
+            crossover_txt = 'Tournament({})'.format(self.config.Crossover.tournament_size)
+        else:
+            raise Exception('Unknown crossover selection "{}"'.format(crossover_selection))
+        crossover_hbox = self._create_hbox('Crossover:', font_bold, crossover_txt, normal_font)
+        ga_vbox.addLayout(crossover_hbox)
+
+        # SBX eta
+        sbx_eta_txt = str(self.config.Crossover.sbx_eta)
+        sbx_hbox = self._create_hbox('SBX Eta:', font_bold, sbx_eta_txt, normal_font)
+        ga_vbox.addLayout(sbx_hbox)
+
+        # Layers
+        num_inputs = get_num_inputs(self.config)
+        hidden = self.config.NeuralNetwork.hidden_network_architecture
+        num_outputs = 6
+        L = [num_inputs] + hidden + [num_outputs]
+        layers_txt = '[' + ', '.join(str(nodes) for nodes in L) + ']'
+        layers_hbox = self._create_hbox('Layers:', font_bold, layers_txt, normal_font)
+        ga_vbox.addLayout(layers_hbox)
 
         self.grid.addLayout(info_vbox, 0, 0)
+        self.grid.addLayout(ga_vbox, 0, 1)
+
+    def _create_hbox(self, title: str, title_font: QtGui.QFont,
+                     content: str, content_font: QtGui.QFont) -> QHBoxLayout:
+        title_label = QLabel()
+        title_label.setFont(title_font)
+        title_label.setText(title)
+        title_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        
+        content_label = QLabel()
+        content_label.setFont(content_font)
+        content_label.setText(content)
+        content_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+
+        hbox = QHBoxLayout()
+        hbox.setContentsMargins(5, 0, 0, 0)
+        hbox.addWidget(title_label, 1)
+        hbox.addWidget(content_label, 1)
+        return hbox
 
 
 
@@ -372,14 +476,15 @@ class MainWindow(QtWidgets.QMainWindow):
         self.info_window.current_individual.setText('{}/{}'.format(self._current_individual + 1, self._next_gen_size))
 
         # Calculate fitness
-        for individual in self.population.individuals:
-            individual.calculate_fitness()
+        print(', '.join(['{:.2f}'.format(i.fitness) for i in self.population.individuals]))
+
+        # print(self.population.fittest_individual.fitness)
 
         if self.config.Statistics.save_best_individual_from_generation:
             folder = self.config.Statistics.save_best_individual_from_generation
             best_ind_name = 'best_ind_gen{}'.format(self.current_generation - 1)
             best_ind = self.population.fittest_individual
-            save_mario(folder, best_ind_name, best_ind, )
+            save_mario(folder, best_ind_name, best_ind)
 
         self.population.individuals = elitism_selection(self.population, self.config.Selection.num_parents)
 
@@ -496,8 +601,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.i += 1
         # right =   np.array([0,0,0,0,0,0,0,1,0], np.int8)
         # nothing = np.array([0,0,0,0,0,0,0,0,0], np.int8)
-        ret = self.env.step(self.keys)
-        # ret = self.env.step(self.mario.buttons_to_press)
+        # ret = self.env.step(self.keys)  #@TODO: Could allow human to play
+        ret = self.env.step(self.mario.buttons_to_press)
         self.game_window.screen = ret[0]
         # self.viz_window.ram = self.env.get_ram()
         

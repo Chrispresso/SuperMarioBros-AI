@@ -52,9 +52,11 @@ class Mario(Individual):
             self.network.params = chromosome
         
         self.is_alive = True
+        self.x_dist = None
+        self.game_score = None
 
-        # Keys correspond with B, NULL, SELECT, START, U, D, L, R, A
-        # index                0  1     2       3      4  5  6  7  8
+        # Keys correspond with             B, NULL, SELECT, START, U, D, L, R, A
+        # index                            0  1     2       3      4  5  6  7  8
         self.buttons_to_press = np.array( [0, 0,    0,      0,     0, 0, 0, 0, 0], np.int8)
         self.farthest_x = 0
 
@@ -74,14 +76,21 @@ class Mario(Individual):
         pass
 
     def calculate_fitness(self):
-        self._fitness = 12
+        frames = self._frames
+        distance = self.x_dist
+        score = self.game_score
+
+        self._fitness = self.config.GeneticAlgorithm.fitness_func(frames, distance, score)
 
     def set_input_as_array(self, ram, tiles) -> None:
         mario_row, mario_col = SMB.get_mario_row_col(ram)
+        print(mario_row, mario_col)
         arr = []
         #@TODO: Where did I mess up the row/col
-        for row in range(-self.l, self.r+1):
-            for col in range(-self.u, self.d+1):
+        # for col in range(-self.l, self.r+1):
+        #     for row in range(-self.u, self.d+1):
+        for row in range(-self.u, self.d+1):
+            for col in range(-self.l, self.r+1):
                 try:
                     t = tiles[(row + mario_row, col + mario_col)]
                     if isinstance(t, StaticTileType):
@@ -97,12 +106,18 @@ class Mario(Individual):
                     t = StaticTileType(0x00)
                     arr.append(0) # Empty
                 
-                # print('{:02X} '.format(arr[-1]), end = '')
-            # print()
+                print('{:02} '.format(arr[-1]), end = '')
+            print()
         # print(arr)
         
-        # print()
+        print()
+        # print(ram)
+        # import sys
+        # sys.exit(-1)
+        # SMB.get_tiles(ram, q=False)
         self.inputs_as_array = np.array(arr).reshape((-1,1)) 
+        print(', '.join([str(x[0]) for x in self.inputs_as_array]))
+
 
     def update(self, ram, tiles, buttons, ouput_to_buttons_map) -> bool:
         """
@@ -114,10 +129,11 @@ class Mario(Individual):
         """
         if self.is_alive:
             self._frames += 1
-            x_dist = SMB.get_mario_location_in_level(ram).x
+            self.x_dist = SMB.get_mario_location_in_level(ram).x
+            self.game_score = SMB.get_mario_score(ram)
             # If we made it further, reset stats
-            if x_dist > self.farthest_x:
-                self.farthest_x = x_dist
+            if self.x_dist > self.farthest_x:
+                self.farthest_x = self.x_dist
                 self._frames_since_progress = 0
             else:
                 self._frames_since_progress += 1
@@ -173,3 +189,25 @@ def save_mario(population_folder: str, individual_name: str, mario: Mario) -> No
 
         np.save(os.path.join(individual_dir, w_name), weights)
         np.save(os.path.join(individual_dir, b_name), bias)
+
+def get_num_inputs(config: Config) -> int:
+    u, d, l, r = config.NeuralNetwork.inputs_size
+    ud = int(bool(u and d))  # If both u and d directions are non-zero, there is an additional square (Mario)
+    lr = int(bool(l and r))  # If both l and r directions are non-zero, there is an additional square (Mario)
+    num_inputs = (u + d + ud) * (l + r + lr)
+    return num_inputs
+
+def get_num_trainable_parameters(config: Config) -> int:
+    num_inputs = get_num_inputs(config)
+    hidden_layers = config.NeuralNetwork.hidden_network_architecture
+    num_outputs = 6  # U, D, L, R, A, B
+
+    layers = [num_inputs] + hidden_layers + [num_outputs]
+    num_params = 0
+    for i in range(0, len(layers)-1):
+        L      = layers[i]
+        L_next = layers[i+1]
+        num_params += L*L_next + L_next
+
+    return num_params
+
