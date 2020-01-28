@@ -450,7 +450,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.keys[m[k]] = 1
         if k == Qt.Key_D:
             tiles = SMB.get_tiles(self.env.get_ram(), False)
-            print(SMB.get_mario_location_in_level(self.env.get_ram()))
+            # print(SMB.get_mario_location_in_level(self.env.get_ram()))
             # for row in range(15):
             #     for col in range(16):
             #         loc = (row, col)
@@ -605,8 +605,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.i += 1
         # right =   np.array([0,0,0,0,0,0,0,1,0], np.int8)
         # nothing = np.array([0,0,0,0,0,0,0,0,0], np.int8)
-        ret = self.env.step(self.keys)  #@TODO: Could allow human to play
-        # ret = self.env.step(self.mario.buttons_to_press)
+        # ret = self.env.step(self.keys)  #@TODO: Could allow human to play
+        ret = self.env.step(self.mario.buttons_to_press)
         self.game_window.screen = ret[0]
         # self.viz_window.ram = self.env.get_ram()
         

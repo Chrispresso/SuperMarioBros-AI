@@ -87,7 +87,7 @@ class Mario(Individual):
 
     def set_input_as_array(self, ram, tiles) -> None:
         mario_row, mario_col = SMB.get_mario_row_col(ram)
-        print(mario_row, mario_col)
+        # print(mario_row, mario_col)
         arr = []
         #@TODO: Where did I mess up the row/col
         # for col in range(-self.l, self.r+1):
@@ -109,17 +109,17 @@ class Mario(Individual):
                     t = StaticTileType(0x00)
                     arr.append(0) # Empty
                 
-                print('{:02} '.format(arr[-1]), end = '')
-            print()
+                # print('{:02} '.format(arr[-1]), end = '')
+            # print()
         # print(arr)
         
-        print()
+        # print()
         # print(ram)
         # import sys
         # sys.exit(-1)
         # SMB.get_tiles(ram, q=False)
         self.inputs_as_array = np.array(arr).reshape((-1,1)) 
-        print(', '.join([str(x[0]) for x in self.inputs_as_array]))
+        # print(', '.join([str(x[0]) for x in self.inputs_as_array]))
 
 
     def update(self, ram, tiles, buttons, ouput_to_buttons_map) -> bool:
