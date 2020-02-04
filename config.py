@@ -20,7 +20,8 @@ _params = {
     # NeuralNetwork Params
     'NeuralNetwork': {
         'inputs_size': (tuple, int),
-        'hidden_network_architecture': (tuple, int),
+        'input_dims': (tuple, int),
+        'hidden_layer_architecture': (tuple, int),
         'hidden_node_activation': str,
         'output_node_activation' : str,
     },

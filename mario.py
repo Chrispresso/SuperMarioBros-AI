@@ -22,22 +22,26 @@ class Mario(Individual):
                  lifespan: Union[int, float] = np.inf,
                  ):
         
+        self.config = config
+
         self.lifespan = lifespan
         self._fitness = 0  # Overall fitness
         self._frames_since_progress = 0  # Number of frames since Mario has made progress towards the goal
         self._frames = 0  # Number of frames Mario has been alive
         
-        self.hidden_layer_architecture = hidden_layer_architecture
-        self.hidden_activation = hidden_activation
-        self.output_activation = output_activation
-
-        self.config = config
+        self.hidden_layer_architecture = self.config.NeuralNetwork.hidden_layer_architecture
+        self.hidden_activation = self.config.NeuralNetwork.hidden_node_activation
+        self.output_activation = self.config.NeuralNetwork.output_node_activation
 
         u, d, l, r = self.config.NeuralNetwork.inputs_size
         self.u, self.d, self.l, self.r = u, d, l, r
+
+        self.start_row, self.viz_width, self.viz_height = self.config.NeuralNetwork.input_dims
         ud = int(bool(u and d))  # If both u and d directions are non-zero, there is an additional square (Mario)
         lr = int(bool(l and r))  # If both l and r directions are non-zero, there is an additional square (Mario)
-        num_inputs = (u + d + ud) * (l + r + lr)
+        num_inputs = (u + d + 1) * (l + r + 1)  #@TODO: is this correct?
+        num_inputs = self.viz_width * self.viz_height
+        # print(f'num inputs:{num_inputs}')
         
         self.inputs_as_array = np.zeros((num_inputs, 1))
         self.network_architecture = [num_inputs]                          # Input Nodes
@@ -87,13 +91,17 @@ class Mario(Individual):
 
     def set_input_as_array(self, ram, tiles) -> None:
         mario_row, mario_col = SMB.get_mario_row_col(ram)
+        # print(f'u:{self.u}, d:{self.d}, l:{self.l}, r:{self.r}')
         # print(mario_row, mario_col)
         arr = []
         #@TODO: Where did I mess up the row/col
         # for col in range(-self.l, self.r+1):
         #     for row in range(-self.u, self.d+1):
-        for row in range(-self.u, self.d+1):
-            for col in range(-self.l, self.r+1):
+        # @TODO: Keep the bottom
+        # for row in range(-self.u, self.d+1):
+        #     for col in range(-self.l, self.r+1):
+        for row in range(self.start_row, self.start_row + self.viz_height):
+            for col in range(mario_col, mario_col + self.viz_width):
                 try:
                     t = tiles[(row + mario_row, col + mario_col)]
                     if isinstance(t, StaticTileType):
@@ -147,7 +155,7 @@ class Mario(Individual):
                 self._frames_since_progress += 1
 
             #@TODO: set this as part of config
-            if self._frames_since_progress > 60:
+            if self._frames_since_progress > 60*3:
                 self.is_alive = False
                 return False
 
@@ -217,6 +225,7 @@ def save_stats(population: Population, fname: str):
     frames = [individual._frames for individual in population.individuals]
     max_distance = [individual.farthest_x for individual in population.individuals]
     fitness = [individual.fitness for individual in population.individuals]
+    wins = [sum([individual.did_win for individual in population.individuals])]
 
     write_header = True
     if os.path.exists(f):
@@ -224,8 +233,10 @@ def save_stats(population: Population, fname: str):
 
     trackers = [('frames', frames),
                 ('distance', max_distance),
-                ('fitness', fitness)
+                ('fitness', fitness),
+                ('wins', wins)
                 ]
+
     stats = ['mean', 'median', 'std', 'min', 'max']
 
     header = [t[0] + '_' + s for t in trackers for s in stats]
@@ -301,12 +312,14 @@ def get_num_inputs(config: Config) -> int:
     u, d, l, r = config.NeuralNetwork.inputs_size
     ud = int(bool(u and d))  # If both u and d directions are non-zero, there is an additional square (Mario)
     lr = int(bool(l and r))  # If both l and r directions are non-zero, there is an additional square (Mario)
-    num_inputs = (u + d + ud) * (l + r + lr)
+    num_inputs = (u + d + 1) * (l + r + 1)  #@TODO: is this correct
+    _, viz_width, viz_height = config.NeuralNetwork.input_dims
+    num_inputs = viz_height*viz_width
     return num_inputs
 
 def get_num_trainable_parameters(config: Config) -> int:
     num_inputs = get_num_inputs(config)
-    hidden_layers = config.NeuralNetwork.hidden_network_architecture
+    hidden_layers = config.NeuralNetwork.hidden_layer_architecture
     num_outputs = 6  # U, D, L, R, A, B
 
     layers = [num_inputs] + hidden_layers + [num_outputs]

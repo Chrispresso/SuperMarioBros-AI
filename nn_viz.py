@@ -15,7 +15,7 @@ class NeuralNetworkViz(QtWidgets.QWidget):
         self.config = config
         self.horizontal_distance_between_layers = 50
         self.vertical_distance_between_nodes = 10
-        l = self.config.NeuralNetwork.hidden_network_architecture + [6]
+        l = self.config.NeuralNetwork.hidden_layer_architecture + [6]
         self.num_neurons_in_largest_layer = max(l[1:])
         # self.setFixedSize(600,800)
         self.neuron_locations = {}

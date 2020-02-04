@@ -66,7 +66,10 @@ class Visualizer(QtWidgets.QWidget):
         color = QColor(255, 0, 217)
         painter.setPen(QPen(color, 3.0, Qt.SolidLine))
         painter.setBrush(QBrush(Qt.NoBrush))
-        painter.drawRect(x*self.tile_width + 5 + self.x_offset, y*self.tile_height + 5, width*self.tile_width, height*self.tile_height)
+        # painter.drawRect(x*self.tile_width + 5 + self.x_offset, y*self.tile_height + 5, width*self.tile_width, height*self.tile_height)
+        #@TODO: Maket this adjustable
+        start_row, viz_width, viz_height = self.config.NeuralNetwork.input_dims
+        painter.drawRect(x*self.tile_width + 5 + self.x_offset, start_row*self.tile_height + 5, viz_width*self.tile_width, viz_height*self.tile_height)
 
 
     def draw_tiles(self, painter: QPainter):
@@ -323,7 +326,7 @@ class InformationWidget(QtWidgets.QWidget):
 
         # Layers
         num_inputs = get_num_inputs(self.config)
-        hidden = self.config.NeuralNetwork.hidden_network_architecture
+        hidden = self.config.NeuralNetwork.hidden_layer_architecture
         num_outputs = 6
         L = [num_inputs] + hidden + [num_outputs]
         layers_txt = '[' + ', '.join(str(nodes) for nodes in L) + ']'
@@ -476,7 +479,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.info_window.current_individual.setText('{}/{}'.format(self._current_individual + 1, self._next_gen_size))
 
         # Calculate fitness
-        print(', '.join(['{:.2f}'.format(i.fitness) for i in self.population.individuals]))
+        # print(', '.join(['{:.2f}'.format(i.fitness) for i in self.population.individuals]))
 
         # print(self.population.fittest_individual.fitness)
 
@@ -602,7 +605,7 @@ class MainWindow(QtWidgets.QMainWindow):
         This is the main update method which is called based on the FPS timer.
         Genetic Algorithm updates, window updates, etc. are performed here.
         """
-        self.i += 1
+        self.i += 1  #@TODO: remove
         # right =   np.array([0,0,0,0,0,0,0,1,0], np.int8)
         # nothing = np.array([0,0,0,0,0,0,0,0,0], np.int8)
         # ret = self.env.step(self.keys)  #@TODO: Could allow human to play
@@ -612,8 +615,8 @@ class MainWindow(QtWidgets.QMainWindow):
         
         self.game_window._update()
 
-        if self.i % 5 != 0:
-            return
+        # if self.i % 5 != 0:
+        #     return
 
         ram = self.env.get_ram()
         tiles = SMB.get_tiles(ram)  # Grab tiles on the screen
