@@ -46,6 +46,7 @@ class Visualizer(QtWidgets.QWidget):
         self.tile_width, self.tile_height = self.config.Graphics.tile_size
         self.tiles = None
         self.enemies = None
+        self._should_update = True
 
     def _draw_region_of_interest(self, painter: QPainter) -> None:
         # Grab mario row/col in our tiles
@@ -117,22 +118,33 @@ class Visualizer(QtWidgets.QWidget):
     def paintEvent(self, event):
         painter = QPainter()
         painter.begin(self)
-        draw_border(painter, self.size)
-        if not self.ram is None:
-            self.draw_tiles(painter)
-            self._draw_region_of_interest(painter)
-            self.nn_viz.show_network(painter)
+
+        if self._should_update:
+            draw_border(painter, self.size)
+            if not self.ram is None:
+                self.draw_tiles(painter)
+                self._draw_region_of_interest(painter)
+                self.nn_viz.show_network(painter)
+        else:
+            # draw_border(painter, self.size)
+            painter.setPen(QColor(0, 0, 0))
+            painter.setFont(QtGui.QFont('Times', 30, QtGui.QFont.Normal))
+            txt = 'Display is hidden.\nHit Ctrl+V to show'
+            painter.drawText(event.rect(), Qt.AlignCenter, txt)
+            pass
 
         painter.end()
 
     def _update(self):
         self.update()
+
     
     
 
 class GameWindow(QtWidgets.QWidget):
     def __init__(self, parent, size, config: Config):
         super().__init__(parent)
+        self._should_update = True
         self.size = size
         self.config = config
         self.screen = None
@@ -140,34 +152,38 @@ class GameWindow(QtWidgets.QWidget):
         self.layout = QtWidgets.QVBoxLayout()
         self.layout.addWidget(self.img_label)
         self.setLayout(self.layout)
+        
 
     def paintEvent(self, event):
         painter = QPainter()
         painter.begin(self)
-        draw_border(painter, self.size)
-        if not self.screen is None:
-            # self.img_label = QtWidgets.QLabel(self.centralWidget)
-            # screen = self.env.reset()
-  
-            width = self.screen.shape[0] * 3 
-            height = int(self.screen.shape[1] * 2)
-            # resized = original.resize((width, height))
-            resized = self.screen
-            original = QImage(self.screen, self.screen.shape[1], self.screen.shape[0], QImage.Format_RGB888)
-            # Create the image and label
-            # image = ImageQt(resized)
-            qimage = QImage(original)
-            # Center where the image will go
-            x = (self.screen.shape[0] - width) // 2
-            y = (self.screen.shape[1] - height) // 2
-            self.img_label.setGeometry(0, 0, width, height)
-            # Add image
-            pixmap = QPixmap(qimage)
-            pixmap = pixmap.scaled(width, height, Qt.KeepAspectRatio)
-            # print(pixmap.width(), pixmap.height())
-            self.img_label.setPixmap(pixmap)
-        # print('here')
-            
+        if self._should_update:
+            draw_border(painter, self.size)
+            if not self.screen is None:
+                # self.img_label = QtWidgets.QLabel(self.centralWidget)
+                # screen = self.env.reset()
+    
+                width = self.screen.shape[0] * 3 
+                height = int(self.screen.shape[1] * 2)
+                # resized = original.resize((width, height))
+                resized = self.screen
+                original = QImage(self.screen, self.screen.shape[1], self.screen.shape[0], QImage.Format_RGB888)
+                # Create the image and label
+                # image = ImageQt(resized)
+                qimage = QImage(original)
+                # Center where the image will go
+                x = (self.screen.shape[0] - width) // 2
+                y = (self.screen.shape[1] - height) // 2
+                self.img_label.setGeometry(0, 0, width, height)
+                # Add image
+                pixmap = QPixmap(qimage)
+                pixmap = pixmap.scaled(width, height, Qt.KeepAspectRatio)
+                # print(pixmap.width(), pixmap.height())
+                self.img_label.setPixmap(pixmap)
+            # print('here')
+        else:
+            self.img_label.clear()
+            # draw_border(painter, self.size)
         painter.end()
 
     def _update(self):
@@ -368,7 +384,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.title = 'Super Mario Bros AI'
         self.env = retro.make(game='SuperMarioBros-Nes', state='Level1-1')
-
+        
+        self._should_display = True
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._update)
         # Keys correspond with B, NULL, SELECT, START, U, D, L, R, A
@@ -453,6 +470,10 @@ class MainWindow(QtWidgets.QMainWindow):
             self.keys[m[k]] = 1
         if k == Qt.Key_D:
             tiles = SMB.get_tiles(self.env.get_ram(), False)
+        modifier = int(event.modifiers())
+        if modifier == Qt.CTRL:
+            if k == Qt.Key_V:
+                self._should_display = not self._should_display
             # print(SMB.get_mario_location_in_level(self.env.get_ram()))
             # for row in range(15):
             #     for col in range(16):
@@ -610,9 +631,15 @@ class MainWindow(QtWidgets.QMainWindow):
         # nothing = np.array([0,0,0,0,0,0,0,0,0], np.int8)
         # ret = self.env.step(self.keys)  #@TODO: Could allow human to play
         ret = self.env.step(self.mario.buttons_to_press)
-        self.game_window.screen = ret[0]
-        # self.viz_window.ram = self.env.get_ram()
-        
+
+        if self._should_display:
+            self.game_window.screen = ret[0]
+            self.game_window._should_update = True
+            self.info_window.show()
+            # self.viz_window.ram = self.env.get_ram()
+        else:
+            self.game_window._should_update = False
+            self.info_window.hide()
         self.game_window._update()
 
         # if self.i % 5 != 0:
@@ -625,11 +652,15 @@ class MainWindow(QtWidgets.QMainWindow):
         # self.mario.set_input_as_array(ram, tiles)
         self.mario.update(ram, tiles, self.keys, self.ouput_to_keys_map)
         
-
-        self.viz_window.ram = ram
-        self.viz_window.tiles = tiles
-        self.viz_window.enemies = enemies
+        if self._should_display:
+            self.viz_window.ram = ram
+            self.viz_window.tiles = tiles
+            self.viz_window.enemies = enemies
+            self.viz_window._should_update = True
+        else:
+            self.viz_window._should_update = False
         self.viz_window._update()
+
 
 
     
