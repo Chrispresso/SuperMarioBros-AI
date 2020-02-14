@@ -21,7 +21,7 @@ class FeedForwardNetwork(object):
                  seed: Optional[int] = None):
         self.params = {}
         self.layer_nodes = layer_nodes
-        print(self.layer_nodes)
+        # print(self.layer_nodes)
         self.hidden_activation = hidden_activation
         self.output_activation = output_activation
         self.inputs = None

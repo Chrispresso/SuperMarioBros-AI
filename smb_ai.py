@@ -10,6 +10,8 @@ import random
 import sys
 import math
 import numpy as np
+import argparse
+
 from utils import SMB, EnemyType, StaticTileType, ColorMap, DynamicTileType
 from config import Config
 from nn_viz import NeuralNetworkViz
@@ -129,7 +131,7 @@ class Visualizer(QtWidgets.QWidget):
             # draw_border(painter, self.size)
             painter.setPen(QColor(0, 0, 0))
             painter.setFont(QtGui.QFont('Times', 30, QtGui.QFont.Normal))
-            txt = 'Display is hidden.\nHit Ctrl+V to show'
+            txt = 'Display is hidden.\nHit Ctrl+V to show\nConfig: {}'.format(args.config)
             painter.drawText(event.rect(), Qt.AlignCenter, txt)
             pass
 
@@ -698,10 +700,17 @@ class MainWindow(QtWidgets.QMainWindow):
             self.viz.mario = self.mario
         
 
-
+def parse_args():
+    parser = argparse.ArgumentParser(description='Super Mario Bros AI')
+    parser.add_argument('-c', '--config', dest='config', required=True, help='config file to use')
+    
+    args = parser.parse_args()
+    return args
 
 if __name__ == "__main__":
-    config = Config('settings.config')
+    global args
+    args = parse_args()
+    config = Config(args.config)
     app = QtWidgets.QApplication(sys.argv)
     window = MainWindow(config)
     sys.exit(app.exec_())
