@@ -20,11 +20,16 @@ class Mario(Individual):
                  hidden_activation: Optional[ActivationFunction] = 'relu',
                  output_activation: Optional[ActivationFunction] = 'sigmoid',
                  lifespan: Union[int, float] = np.inf,
+                 name: Optional[str] = None,
+                 debug: Optional[bool] = False,
                  ):
         
         self.config = config
 
         self.lifespan = lifespan
+        self.name = name
+        self.debug = debug
+
         self._fitness = 0  # Overall fitness
         self._frames_since_progress = 0  # Number of frames since Mario has made progress towards the goal
         self._frames = 0  # Number of frames Mario has been alive
@@ -155,6 +160,10 @@ class Mario(Individual):
             # Sliding down flag pole
             if ram[0x001D] == 3:
                 self.did_win = True
+                if self.debug:
+                    name = 'Mario '
+                    name += f'{self.name}' if self.name else ''
+                    print(f'{name} won')
                 self.is_alive = False
                 return False
             # If we made it further, reset stats
@@ -215,6 +224,33 @@ def save_mario(population_folder: str, individual_name: str, mario: Mario) -> No
 
         np.save(os.path.join(individual_dir, w_name), weights)
         np.save(os.path.join(individual_dir, b_name), bias)
+    
+def load_mario(population_folder: str, individual_name: str, config: Optional[Config] = None) -> Mario:
+    # Make sure individual exists inside population folder
+    if not os.path.exists(os.path.join(population_folder, individual_name)):
+        raise Exception(f'{individual_name} not found inside {population_folder}')
+
+    # Load a config if one is not given
+    if not config:
+        settings_path = os.path.join(population_folder, 'settings.config')
+        config = None
+        try:
+            config = Config(settings_path)
+        except:
+            raise Exception(f'settings.config not found under {population_folder}')
+
+    chromosome: Dict[str, np.ndarray] = {}
+    # Grab all .npy files, i.e. W1.npy, b1.npy, etc. and load them into the chromosome
+    for fname in os.listdir(os.path.join(population_folder, individual_name)):
+        extension = fname.rsplit('.npy', 1)
+        if len(extension) == 2:
+            param = extension[0]
+            chromosome[param] = np.load(os.path.join(population_folder, individual_name, fname))
+        
+    mario = Mario(config, chromosome=chromosome)
+    return mario
+
+    
 
 def _calc_stats(data: List[Union[int, float]]) -> Tuple[float, float, float, float, float]:
     mean = np.mean(data)

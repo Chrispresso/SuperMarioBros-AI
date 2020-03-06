@@ -5,17 +5,18 @@ from PyQt5.QtCore import Qt, QPointF, QTimer, QRect
 from PyQt5.QtWidgets import QVBoxLayout, QHBoxLayout, QLabel
 from PIL import Image
 from PIL.ImageQt import ImageQt
-from typing import Tuple, List
+from typing import Tuple, List, Optional
 import random
 import sys
 import math
 import numpy as np
 import argparse
+import os
 
 from utils import SMB, EnemyType, StaticTileType, ColorMap, DynamicTileType
 from config import Config
 from nn_viz import NeuralNetworkViz
-from mario import Mario, save_mario, save_stats, get_num_trainable_parameters, get_num_inputs
+from mario import Mario, save_mario, save_stats, get_num_trainable_parameters, get_num_inputs, load_mario
 
 from genetic_algorithm.individual import Individual
 from genetic_algorithm.population import Population
@@ -376,8 +377,9 @@ class InformationWidget(QtWidgets.QWidget):
 
 
 class MainWindow(QtWidgets.QMainWindow):
-    def __init__(self, config: Config):
+    def __init__(self, config: Optional[Config] = None):
         super().__init__()
+        global args
         self.config = config
         self.top = 150
         self.left = 150
@@ -386,7 +388,11 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.title = 'Super Mario Bros AI'
         self.env = retro.make(game='SuperMarioBros-Nes', state='Level1-1')
-        
+        self.current_generation = 0
+        # This is the generation that is actual 0. If you load individuals then you might end up starting at gen 12, in which case
+        # gen 12 would be the true 0
+        self._true_zero_gen = 0
+
         self._should_display = True
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._update)
@@ -407,16 +413,52 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # Initialize the starting population
         individuals: List[Individual] = []
-        for _ in range(self.config.Selection.num_parents):
+
+        # Load any individuals listed in the args
+        num_loaded = 0
+        if args.load_inds:
+            # Overwrite the config file IF one is not specified
+            if not self.config:
+                try:
+                    self.config = Config(os.path.join(args.load_file, 'settings.config'))
+                except:
+                    raise Exception(f'settings.config not found under {args.load_file}')
+
+            set_of_inds = set(args.load_inds)
+
+            for ind_name in os.listdir(args.load_file):
+                if ind_name.startswith('best_ind_gen'):
+                    ind_number = int(ind_name[len('best_ind_gen'):])
+                    if ind_number in set_of_inds:
+                        individual = load_mario(args.load_file, ind_name, self.config)
+                        # Set debug stuff if needed
+                        if args.debug:
+                            individual.name = f'm{num_loaded}_loaded'
+                            individual.debug = True
+                        individuals.append(individual)
+                        num_loaded += 1
+            
+            # Set the generation
+            self.current_generation = max(set_of_inds) + 1  # +1 becauase it's the next generation
+            self._true_zero_gen = self.current_generation
+
+
+        num_parents = max(self.config.Selection.num_parents - num_loaded, 0)
+        for _ in range(num_parents):
             individual = Mario(self.config)
+            # Set debug stuff if needed
+            if args.debug:
+                individual.name = f'm{num_loaded}'
+                individual.debug = True
             individuals.append(individual)
+            num_loaded += 1
 
         self.best_fitness = 0.0
         self._current_individual = 0
         self.population = Population(individuals)
 
         self.mario = self.population.individuals[self._current_individual]
-        self.current_generation = 0
+        
         self.max_distance = 0  # Track farthest traveled in level
         self.max_fitness = 0.0
 
@@ -427,10 +469,23 @@ class MainWindow(QtWidgets.QMainWindow):
         elif self.config.Selection.selection_type == 'comma':
             self._next_gen_size = self.config.Selection.num_offspring
 
-        self.init_window()
-        self.show()
+        # If we aren't displaying we need to reset the environment to begin with
+        if args.no_display:
+            self.env.reset()
+        else:
+            self.init_window()
 
-        self._timer.start(1000 // 60)
+            # Set the generation in the label if needed
+            if args.load_inds:
+                txt = "<font color='red'>" + str(self.current_generation + 1) + '</font>'  # +1 because we switch from 0 to 1 index
+                self.info_window.generation.setText(txt)
+
+            self.show()
+
+        if args.no_display:
+            self._timer.start(1000 // 1000)
+        else:
+            self._timer.start(1000 // 60)
 
     def init_window(self) -> None:
         self.centralWidget = QtWidgets.QWidget(self)
@@ -499,12 +554,20 @@ class MainWindow(QtWidgets.QMainWindow):
     def next_generation(self) -> None:
         self._increment_generation()
         self._current_individual = 0
-        self.info_window.current_individual.setText('{}/{}'.format(self._current_individual + 1, self._next_gen_size))
+
+        if not args.no_display:
+            self.info_window.current_individual.setText('{}/{}'.format(self._current_individual + 1, self._next_gen_size))
 
         # Calculate fitness
         # print(', '.join(['{:.2f}'.format(i.fitness) for i in self.population.individuals]))
 
-        # print(self.population.fittest_individual.fitness)
+        if args.debug:
+            print(f'----Current Gen: {self.current_generation}, True Zero: {self._true_zero_gen}')
+            fittest = self.population.fittest_individual
+            print(f'Best fitness of gen: {fittest.fitness}, Max dist of gen: {fittest.farthest_x}')
+            num_wins = sum(individual.did_win for individual in self.population.individuals)
+            pop_size = len(self.population.individuals)
+            print(f'Wins: {num_wins}/{pop_size} (~{(float(num_wins)/pop_size*100):.2f}%)')
 
         if self.config.Statistics.save_best_individual_from_generation:
             folder = self.config.Statistics.save_best_individual_from_generation
@@ -534,11 +597,18 @@ class MainWindow(QtWidgets.QMainWindow):
                 hidden_activation = individual.hidden_activation
                 output_activation = individual.output_activation
                 lifespan = individual.lifespan
+                name = individual.name
 
                 # If the indivdual would be alve, add it to the next pop
                 if lifespan > 0:
                     m = Mario(config, chromosome, hidden_layer_architecture, hidden_activation, output_activation, lifespan)
+                    # Set debug if needed
+                    if args.debug:
+                        m.name = f'{name}_life{lifespan}'
+                        m.debug = True
                     next_pop.append(m)
+
+        num_loaded = 0
 
         while len(next_pop) < self._next_gen_size:
             selection = self.config.Crossover.crossover_selection
@@ -585,6 +655,18 @@ class MainWindow(QtWidgets.QMainWindow):
             c1 = Mario(self.config, c1_params, p1.hidden_layer_architecture, p1.hidden_activation, p1.output_activation, p1.lifespan)
             c2 = Mario(self.config, c2_params, p2.hidden_layer_architecture, p2.hidden_activation, p2.output_activation, p2.lifespan)
 
+            # Set debug if needed
+            if args.debug:
+                c1_name = f'm{num_loaded}_new'
+                c1.name = c1_name
+                c1.debug = True
+                num_loaded += 1
+
+                c2_name = f'm{num_loaded}_new'
+                c2.name = c2_name
+                c2.debug = True
+                num_loaded += 1
+
             next_pop.extend([c1, c2])
 
         # Set next generation
@@ -619,8 +701,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _increment_generation(self) -> None:
         self.current_generation += 1
-        txt = "<font color='red'>" + str(self.current_generation + 1) + '</font>'
-        self.info_window.generation.setText(txt)
+        if not args.no_display:
+            txt = "<font color='red'>" + str(self.current_generation + 1) + '</font>'
+            self.info_window.generation.setText(txt)
 
 
     def _update(self) -> None:
@@ -634,15 +717,16 @@ class MainWindow(QtWidgets.QMainWindow):
         # ret = self.env.step(self.keys)  #@TODO: Could allow human to play
         ret = self.env.step(self.mario.buttons_to_press)
 
-        if self._should_display:
-            self.game_window.screen = ret[0]
-            self.game_window._should_update = True
-            self.info_window.show()
-            # self.viz_window.ram = self.env.get_ram()
-        else:
-            self.game_window._should_update = False
-            self.info_window.hide()
-        self.game_window._update()
+        if not args.no_display:
+            if self._should_display:
+                self.game_window.screen = ret[0]
+                self.game_window._should_update = True
+                self.info_window.show()
+                self.viz_window.ram = self.env.get_ram()
+            else:
+                self.game_window._should_update = False
+                self.info_window.hide()
+            self.game_window._update()
 
         # if self.i % 5 != 0:
         #     return
@@ -654,14 +738,15 @@ class MainWindow(QtWidgets.QMainWindow):
         # self.mario.set_input_as_array(ram, tiles)
         self.mario.update(ram, tiles, self.keys, self.ouput_to_keys_map)
         
-        if self._should_display:
-            self.viz_window.ram = ram
-            self.viz_window.tiles = tiles
-            self.viz_window.enemies = enemies
-            self.viz_window._should_update = True
-        else:
-            self.viz_window._should_update = False
-        self.viz_window._update()
+        if not args.no_display:
+            if self._should_display:
+                self.viz_window.ram = ram
+                self.viz_window.tiles = tiles
+                self.viz_window.enemies = enemies
+                self.viz_window._should_update = True
+            else:
+                self.viz_window._should_update = False
+            self.viz_window._update()
 
 
 
@@ -669,8 +754,11 @@ class MainWindow(QtWidgets.QMainWindow):
         if self.mario.is_alive:
             # New farthest distance?
             if self.mario.farthest_x > self.max_distance:
+                if args.debug:
+                    print('New farthest distance:', self.mario.farthest_x)
                 self.max_distance = self.mario.farthest_x
-                self.info_window.max_distance.setText(str(self.max_distance))
+                if not args.no_display:
+                    self.info_window.max_distance.setText(str(self.max_distance))
         else:
             self.mario.calculate_fitness()
             fitness = self.mario.fitness
@@ -678,39 +766,117 @@ class MainWindow(QtWidgets.QMainWindow):
             if fitness > self.max_fitness:
                 self.max_fitness = fitness
                 max_fitness = '{:.2f}'.format(self.max_fitness)
-                self.info_window.best_fitness.setText(max_fitness)
+                if not args.no_display:
+                    self.info_window.best_fitness.setText(max_fitness)
 
 
             self._current_individual += 1
 
             # Is it the next generation?
-            if (self.current_generation > 0 and self._current_individual == self._next_gen_size) or\
-                (self.current_generation == 0 and self._current_individual == self.config.Selection.num_parents):
+            if (self.current_generation > self._true_zero_gen and self._current_individual == self._next_gen_size) or\
+                (self.current_generation == self._true_zero_gen and self._current_individual == self.config.Selection.num_parents):
                 self.next_generation()
             else:
-                if self.current_generation == 0:
+                if self.current_generation == self._true_zero_gen:
                     current_pop = self.config.Selection.num_parents
                 else:
                     current_pop = self._next_gen_size
-                self.info_window.current_individual.setText('{}/{}'.format(self._current_individual + 1, current_pop))
+                if not args.no_display:
+                    self.info_window.current_individual.setText('{}/{}'.format(self._current_individual + 1, current_pop))
             
 
-            self.game_window.screen = self.env.reset()
+            if args.no_display:
+                self.env.reset()
+            else:
+                self.game_window.screen = self.env.reset()
+            
             self.mario = self.population.individuals[self._current_individual]
-            self.viz.mario = self.mario
+
+            if not args.no_display:
+                self.viz.mario = self.mario
         
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Super Mario Bros AI')
-    parser.add_argument('-c', '--config', dest='config', required=True, help='config file to use')
-    
+
+    # Config
+    parser.add_argument('-c', '--config', dest='config', required=False, help='config file to use')
+    # Load arguments
+    parser.add_argument('--load-file', dest='load_file', required=False, help='/path/to/population that you want to load individuals from')
+    parser.add_argument('--load-inds', dest='load_inds', required=False, help='[start,stop] (inclusive) or ind1,ind2,... that you wish to load from the file')
+    # No display
+    parser.add_argument('--no-display', dest='no_display', required=False, default=False, action='store_true', help='If set, there will be no Qt graphics displayed and FPS is increased to max')
+    # Debug
+    parser.add_argument('--debug', dest='debug', required=False, default=False, action='store_true', help='If set, certain debug messages will be printed')
+    # Replay arguments
+    parser.add_argument('--replay-file', dest='replay_file', required=False, help='/path/to/population that you want to replay from')
+    parser.add_argument('--replay-inds', dest='replay_inds', required=False, help='[start,stop] (inclusive) or ind1,ind2,ind50,... or [start,] that you wish to replay from file')
+
     args = parser.parse_args()
+    
+    load_from_file = bool(args.load_file) and bool(args.load_inds)
+    replay_from_file = bool(args.replay_file) and bool(args.replay_inds)
+
+    # Load from file checks
+    if bool(args.load_file) ^ bool(args.load_inds):
+        parser.error('--load-file and --load-inds must be used together.')
+    if load_from_file:
+        # Convert the load_inds to be a list
+        # Is it a range?
+        if '[' in args.load_inds and ']' in args.load_inds:
+            args.load_inds = args.load_inds.replace('[', '').replace(']', '')
+            ranges = args.load_inds.split(',')
+            start_idx = int(ranges[0])
+            end_idx = int(ranges[1])
+            args.load_inds = list(range(start_idx, end_idx + 1))
+        # Otherwise it's a list of individuals to load
+        else:
+            args.load_inds = [int(ind) for ind in args.load_inds.split(',')]
+
+    # Replay from file checks
+    if bool(args.replay_file) ^ bool(args.replay_inds):
+        parser.error('--replay-file and --replay-inds must be used together.')
+    if replay_from_file:
+        # Convert the replay_inds to be a list
+        # is it a range?
+        if '[' in args.replay_inds and ']' in args.replay_inds:
+            args.replay_inds = args.replay_inds.replace('[', '').replace(']', '')
+            ranges = args.replay_inds.split(',')
+            has_end_idx = bool(ranges[1])
+            start_idx = int(ranges[0])
+            # Is there an end idx? i.e. [12,15]
+            if has_end_idx:
+                end_idx = int(ranges[1])
+                args.replay_inds = list(range(start_idx, end_idx + 1))
+            # Or is it just a start? i.e. [12,]
+            else:
+                end_idx = start_idx
+                for fname in os.listdir(args.replay_file):
+                    if fname.startswith('best_ind_gen'):
+                        ind_num = int(fname[len('best_ind_gen'):])
+                        if ind_num > end_idx:
+                            end_idx = ind_num
+                args.replay_inds = list(range(start_idx, end_idx + 1))
+        # Otherwise it's a list of individuals
+        else:
+            args.replay_inds = [int(ind) for ind in args.replay_inds.split(',')]
+
+    if replay_from_file and load_from_file:
+        parser.error('Cannot replay and load from a file.')
+
+    # Make sure config AND/OR [(load_file and load_inds) or (replay_file and replay_inds)]
+    if not (bool(args.config) or (load_from_file or replay_from_file)):
+        parser.error('Must specify -c and/or [(--load-file and --load-inds) or (--replay-file and --replay-inds)]')
+
     return args
 
 if __name__ == "__main__":
     global args
     args = parse_args()
-    config = Config(args.config)
+    config = None
+    if args.config:
+        config = Config(args.config)
+
     app = QtWidgets.QApplication(sys.argv)
     window = MainWindow(config)
     sys.exit(app.exec_())
