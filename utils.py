@@ -158,9 +158,8 @@ class SMB(object):
         Player_Y_Position_Screen_Offset = 0x3B8
         Enemy_X_Position_Screen_Offset = 0x3AE
 
-
-    def read_byte(cls, ram: np.ndarray, location: int):
-        pass
+        Player_Y_Pos_On_Screen = 0xCE
+        Player_Vertical_Screen_Position = 0xB5
 
     @classmethod
     def get_enemy_locations(cls, ram: np.ndarray):
@@ -199,8 +198,7 @@ class SMB(object):
     @classmethod
     def get_mario_location_in_level(cls, ram: np.ndarray) -> Point:
         mario_x = ram[cls.RAMLocations.Player_X_Postion_In_Level.value] * 256 + ram[cls.RAMLocations.Player_X_Position_On_Screen.value]
-        # mario_y = ram[0xce] * ram[0xb5]
-        mario_y = ram[0x3b8]
+        mario_y = ram[cls.RAMLocations.Player_Y_Position_Screen_Offset.value]
         return Point(mario_x, mario_y)
 
     @classmethod
@@ -215,13 +213,13 @@ class SMB(object):
 
     @classmethod
     def get_mario_location_on_screen(cls, ram: np.ndarray):
-        mario_x = ram[cls.RAMLocations.Player_X_Position_Screen_Offset.value] 
-        mario_y = ram[0xce] * ram[0xb5] + cls.sprite.height  # @TODO: Change this to screen and not level
+        mario_x = ram[cls.RAMLocations.Player_X_Position_Screen_Offset.value]
+        mario_y = ram[cls.RAMLocations.Player_Y_Pos_On_Screen.value] * ram[cls.RAMLocations.Player_Vertical_Screen_Position.value] + cls.sprite.height
         return Point(mario_x, mario_y)
 
     @classmethod
     def get_tile_type(cls, ram:np.ndarray, delta_x: int, delta_y: int, mario: Point):
-        x = mario.x + delta_x  # @TODO maybe +1 or +4. Half seems to mess up hitboxes sometimes
+        x = mario.x + delta_x
         y = mario.y + delta_y + cls.sprite.height
 
         # Tile locations have two pages. Determine which page we are in
@@ -230,7 +228,8 @@ class SMB(object):
         sub_page_x = (x % 256) // 16
         sub_page_y = (y - 32) // 16  # The PPU is not part of the world, coins, etc (status bar at top)
         if sub_page_y not in range(13):# or sub_page_x not in range(16):
-            return 0x00
+            return StaticTileType.Empty.value
+
         addr = 0x500 + page*208 + sub_page_y*16 + sub_page_x
         return ram[addr]
 
@@ -240,177 +239,75 @@ class SMB(object):
         col = np.digitize(x, cls.xbins)
         return (row, col)
 
-    # @classmethod
-    # def get_tile_location(cls, ram: np.ndarray, )
-
     @classmethod
-    def get_tiles_on_screen(cls, ram: np.ndarray):
-        mario = cls.get_mario_location_in_level(ram)
-
-        # How many tiles above and below mario are there?
-        tiles_down = (cls.resolution.height - cls.status_bar.height - mario.y) // 16
-        tiles_up = (13 - 1 - tiles_down)
-
-        # How many tiles to the left and right of mario are there?
-        x_loc = ram[cls.RAMLocations.Player_X_Position_Screen_Offset.value]
-        tiles_left = x_loc // 16
-        tiles_right = 16 - 1 - tiles_left
-
-        # tiles_left = 7
-        # tiles_right = 8
-
-        # tiles = np.empty((13,16), np.uint8)
-        # tiles.fill(0xFF)
-        tiles = {}
-
-        # Grab enemies
-        enemies = cls.get_enemy_locations(ram)
-
-        for y in range(-tiles_up, tiles_down+1):
-            for x in range(-tiles_left, tiles_right+1):
-                dy = y*16
-                dx = x*16
-                
-                loc = (y+tiles_up, x+tiles_left)
-                if mario.x + dx - ram[0x71c] >= 256:
-                    tiles[loc] = StaticTileType.Empty
-                    continue
-
-                tile_type = cls.get_tile_type(ram, dx, dy, mario)
-                # @TODO fill in values
-                if StaticTileType.has_value(tile_type):
-                    tile = StaticTileType(tile_type)
-                else:
-                    # print('missing', tile_type)
-                    tile = StaticTileType(0x00)
-                tiles[loc] = tile
-                # If dx and dy are both 0, this is where mario is
-                # @TODO: I think this changes for when mario is big. He might take up 2 sprites then
-                if dx == dy == 0:
-                    tiles[loc]= DynamicTileType(0xAA)  # Mario
-
-        for enemy in enemies:
-            if enemy:
-                ex = enemy.location.x
-                if ex >= cls.resolution.width:
-                    continue
-                ey = enemy.location.y + 8
-                ex += 8
-                ybin = np.digitize(ey, cls.ybins) - 2
-                xbin = np.digitize(ex, cls.xbins)
-                loc = (ybin, xbin)
-                tiles[loc] = EnemyType(enemy.type.value)
-
-
-        return tiles
-
-    @classmethod
-    def get_tiles(cls, ram: np.ndarray, q=True):
+    def get_tiles(cls, ram: np.ndarray):
         tiles = {}
         row = 0
         col = 0
 
         mario_level = cls.get_mario_location_in_level(ram)
         mario_screen = cls.get_mario_location_on_screen(ram)
-        # mario_screen = ram[0x86] - ram[0x71c]
+
         x_start = mario_level.x - mario_screen.x
-        # x_start = ram[0x71c]
-        # print('start', x_start)
 
         enemies = cls.get_enemy_locations(ram)
         y_start = 0
         mx, my = cls.get_mario_location_in_level(ram)
         my += 16
-        mx_offset = ram[0x3ad]
-        # mx = mx % 256
-        # my = my % 240
-        # print(mx, my)
-        mx = ram[0x3ad]
-        # print(mx, my)
+        # Set mx to be within the screen offset
+        mx = ram[cls.RAMLocations.Player_X_Position_Screen_Offset.value]
+
         for y_pos in range(y_start, 240, 16):
             for x_pos in range(x_start, x_start + 256, 16):
                 loc = (row, col)
-                tile = cls.get_tile(x_pos, y_pos, ram,q)
+                tile = cls.get_tile(x_pos, y_pos, ram)
                 x, y = x_pos, y_pos
                 page = (x // 256) % 2
                 sub_x = (x % 256) // 16
                 sub_y = (y - 32) // 16                
                 addr = 0x500 + page*208 + sub_y*16 + sub_x
                 
+                # PPU is there, so no tile is there
                 if row < 2:
-                    tiles[loc] =  StaticTileType(0x00)
+                    tiles[loc] =  StaticTileType.Empty
                 else:
 
                     try:
                         tiles[loc] = StaticTileType(tile)
                     except:
-                        tiles[loc] = StaticTileType(0x01)
+                        tiles[loc] = StaticTileType.Fake
                     for enemy in enemies:
                         ex = enemy.location.x
                         ey = enemy.location.y + 8
-                        # print(ex, ey)
+                        # Since we can only discriminate within 8 pixels, if it falls within this bound, count it as there
                         if abs(x_pos - ex) <=8 and abs(y_pos - ey) <=8:
-                            tiles[loc] = EnemyType(0x06)
-
-                if not q:
-                    _q = tiles[loc].value
-                    print('{:02X}'.format(_q), end=' ')
-
-                # if abs((x_start + x_pos) - mx) <=8 and abs(y_pos - my) <= 8:
-                #     tiles[loc] = DynamicTileType(0xAA)
-
+                            tiles[loc] = EnemyType.Generic_Enemy
+                # Next col
                 col += 1
-
+            # Move to next row
             col = 0
             row += 1
-            if not q:
-                print()
-        
-        
-        
-        # if enemies:
-        #     e = ', '.join(e.type.name for e in enemies)
-        #     print(e)
 
-        # for enemy in enemies:
-        #     xbin, ybin = enemy.tile_location
-        #     tiles[(ybin, xbin)] = EnemyType(0x06)
-
-        # tiles[(my//16, mx//16)] = DynamicTileType(0xAA)
-
-        # Get enemy tiles
-        
-        # for enemy in enemies:
-        #     ex = enemy.location.x - x_start + 16
-        #     ey = enemy.location.y+8
-        #     row = (ey) // 16
-        #     col = ex // 16
-        #     loc = (row, col)
-        #     tiles[loc] = EnemyType(0x6)
-
-        # Get Mario
+        # Place marker for mario
         mario_row, mario_col = cls.get_mario_row_col(ram)
         loc = (mario_row, mario_col)
-        tiles[loc] = DynamicTileType(0xAA)
+        tiles[loc] = DynamicTileType.Mario
 
         return tiles
 
     @classmethod
     def get_mario_row_col(cls, ram):
         x, y = cls.get_mario_location_on_screen(ram)
-        y = ram[0x3b8]+16
-        x+=12
-        # x = x+4
-        # x+=8
+        # Adjust 16 for PPU
+        y = ram[cls.RAMLocations.Player_Y_Position_Screen_Offset.value] + 16
+        x += 12
         col = x // 16
-        # y -= y%8
-        # y-=4
-        row = (y-0) // 16
+        row = (y - 0) // 16
         return (row, col)
 
 
     @classmethod
-    def get_tile(cls, x, y, ram,q=True):
+    def get_tile(cls, x, y, ram, group_non_zero_tiles=True):
         page = (x // 256) % 2
         sub_x = (x % 256) // 16
         sub_y = (y - 32) // 16
@@ -419,8 +316,9 @@ class SMB(object):
             return 0x00
 
         addr = 0x500 + page*208 + sub_y*16 + sub_x
-        if q:
+        if group_non_zero_tiles:
             if ram[addr] != 0:
+                StaticTileType.Fake.value
                 return 0x01  # Fake tile
         return ram[addr]
 
