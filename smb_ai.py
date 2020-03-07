@@ -414,7 +414,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # Initialize the starting population
         individuals: List[Individual] = []
 
-        # Load any individuals listed in the args
+        # Load any individuals listed in the args.load_inds
         num_loaded = 0
         if args.load_inds:
             # Overwrite the config file IF one is not specified
@@ -442,16 +442,38 @@ class MainWindow(QtWidgets.QMainWindow):
             self.current_generation = max(set_of_inds) + 1  # +1 becauase it's the next generation
             self._true_zero_gen = self.current_generation
 
+        # Load any individuals listed in args.replay_inds
+        if args.replay_inds:
+            # Overwrite the config file IF one is not specified
+            if not self.config:
+                try:
+                    self.config = Config(os.path.join(args.load_file, 'settings.config'))
+                except:
+                    raise Exception(f'settings.config not found under {args.replay_file}')
 
-        num_parents = max(self.config.Selection.num_parents - num_loaded, 0)
-        for _ in range(num_parents):
-            individual = Mario(self.config)
-            # Set debug stuff if needed
-            if args.debug:
-                individual.name = f'm{num_loaded}'
-                individual.debug = True
-            individuals.append(individual)
-            num_loaded += 1
+            for ind_gen in args.replay_inds:
+                ind_name = f'best_ind_gen{ind_gen}'
+                fname = os.path.join(args.replay_file, ind_name)
+                if os.path.exists(fname):
+                    individual = load_mario(args.replay_file, ind_name, self.config)
+                    # Set debug stuff if needed
+                    if args.debug:
+                        individual.name= f'm_gen{ind_gen}_replay'
+                        individual.debug = True
+                    individuals.append(individual)
+                else:
+                    raise Exception(f'No individual named {ind_name} under {args.replay_file}')
+        # If it's not a replay then we need to continue creating individuals
+        else:
+            num_parents = max(self.config.Selection.num_parents - num_loaded, 0)
+            for _ in range(num_parents):
+                individual = Mario(self.config)
+                # Set debug stuff if needed
+                if args.debug:
+                    individual.name = f'm{num_loaded}'
+                    individual.debug = True
+                individuals.append(individual)
+                num_loaded += 1
 
         self.best_fitness = 0.0
         self._current_individual = 0
@@ -480,7 +502,14 @@ class MainWindow(QtWidgets.QMainWindow):
                 txt = "<font color='red'>" + str(self.current_generation + 1) + '</font>'  # +1 because we switch from 0 to 1 index
                 self.info_window.generation.setText(txt)
 
+            # if this is a replay then just set current_individual to be 'replay' and set generation
+            if args.replay_file:
+                self.info_window.current_individual.setText('Replay')
+                txt = f"<font color='red'>{args.replay_inds[self._current_individual] + 1}</font>"
+                self.info_window.generation.setText(txt)
+
             self.show()
+
 
         if args.no_display:
             self._timer.start(1000 // 1000)
@@ -772,17 +801,30 @@ class MainWindow(QtWidgets.QMainWindow):
 
             self._current_individual += 1
 
-            # Is it the next generation?
-            if (self.current_generation > self._true_zero_gen and self._current_individual == self._next_gen_size) or\
-                (self.current_generation == self._true_zero_gen and self._current_individual == self.config.Selection.num_parents):
-                self.next_generation()
-            else:
-                if self.current_generation == self._true_zero_gen:
-                    current_pop = self.config.Selection.num_parents
-                else:
-                    current_pop = self._next_gen_size
+            # Are we replaying from a file?
+            if args.replay_file:
                 if not args.no_display:
-                    self.info_window.current_individual.setText('{}/{}'.format(self._current_individual + 1, current_pop))
+                    # Set the generation to be whatever best individual is being ran (+1)
+                    # Check to see if there is a next individual, otherwise exit
+                    if self._current_individual >= len(args.replay_inds):
+                        if args.debug:
+                            print(f'Finished replaying {len(args.replay_inds)} best individuals')
+                            sys.exit()
+
+                    txt = f"<font color='red'>{args.replay_inds[self._current_individual] + 1}</font>"
+                    self.info_window.generation.setText(txt)
+            else:
+                # Is it the next generation?
+                if (self.current_generation > self._true_zero_gen and self._current_individual == self._next_gen_size) or\
+                    (self.current_generation == self._true_zero_gen and self._current_individual == self.config.Selection.num_parents):
+                    self.next_generation()
+                else:
+                    if self.current_generation == self._true_zero_gen:
+                        current_pop = self.config.Selection.num_parents
+                    else:
+                        current_pop = self._next_gen_size
+                    if not args.no_display:
+                        self.info_window.current_individual.setText('{}/{}'.format(self._current_individual + 1, current_pop))
             
 
             if args.no_display:
@@ -809,8 +851,8 @@ def parse_args():
     # Debug
     parser.add_argument('--debug', dest='debug', required=False, default=False, action='store_true', help='If set, certain debug messages will be printed')
     # Replay arguments
-    parser.add_argument('--replay-file', dest='replay_file', required=False, help='/path/to/population that you want to replay from')
-    parser.add_argument('--replay-inds', dest='replay_inds', required=False, help='[start,stop] (inclusive) or ind1,ind2,ind50,... or [start,] that you wish to replay from file')
+    parser.add_argument('--replay-file', dest='replay_file', required=False, default=None, help='/path/to/population that you want to replay from')
+    parser.add_argument('--replay-inds', dest='replay_inds', required=False, default=None, help='[start,stop] (inclusive) or ind1,ind2,ind50,... or [start,] that you wish to replay from file')
 
     args = parser.parse_args()
     
