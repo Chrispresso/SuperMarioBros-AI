@@ -23,7 +23,8 @@ _params = {
         'input_dims': (tuple, int),
         'hidden_layer_architecture': (tuple, int),
         'hidden_node_activation': str,
-        'output_node_activation' : str,
+        'output_node_activation': str,
+        'encode_row': bool,
     },
 
     # Genetic Algorithm
@@ -52,6 +53,11 @@ _params = {
         'num_offspring': int,
         'selection_type': str,
         'lifespan': float
+    },
+
+    # Misc Params
+    'Misc': {
+        'level': str
     }
 }
 
@@ -137,6 +143,9 @@ class Config(object):
                         self._config_dict[section][k] = eval(v)
                     except:
                         pass
+                # Is it a bool?
+                elif _type == bool:
+                    self._config_dict[section][k] = _type(eval(v))
                 # Otherwise parse normally
                 else:
                     self._config_dict[section][k] = _type(v)

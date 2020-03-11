@@ -46,7 +46,11 @@ class Mario(Individual):
         lr = int(bool(l and r))  # If both l and r directions are non-zero, there is an additional square (Mario)
         num_inputs = (u + d + 1) * (l + r + 1)  #@TODO: is this correct?
         # viz_width * viz_height for the tiles + viz_height as one-hot encoded mario row
-        num_inputs = self.viz_width * self.viz_height + self.viz_height
+
+        if self.config.NeuralNetwork.encode_row:
+            num_inputs = self.viz_width * self.viz_height + self.viz_height
+        else:
+            num_inputs = self.viz_width * self.viz_height
         # print(f'num inputs:{num_inputs}')
         
         self.inputs_as_array = np.zeros((num_inputs, 1))
@@ -133,14 +137,15 @@ class Mario(Individual):
         # sys.exit(-1)
         # SMB.get_tiles(ram, q=False)
         # Assign tile inputs
-        self.inputs_as_array[:self.viz_height*self.viz_width, :] = np.array(arr).reshape((-1,1)) 
-        # Assign one-hot for mario row
-        row = mario_row - self.start_row
-        # print('row', row)
-        one_hot = np.zeros((self.viz_height, 1))
-        if row >= 0 and row < self.viz_height:
-            one_hot[row, 0] = 1
-        self.inputs_as_array[self.viz_height*self.viz_width:, :] = one_hot.reshape((-1, 1))
+        self.inputs_as_array[:self.viz_height*self.viz_width, :] = np.array(arr).reshape((-1,1))
+        if self.config.NeuralNetwork.encode_row:
+            # Assign one-hot for mario row
+            row = mario_row - self.start_row
+            # print('row', row)
+            one_hot = np.zeros((self.viz_height, 1))
+            if row >= 0 and row < self.viz_height:
+                one_hot[row, 0] = 1
+            self.inputs_as_array[self.viz_height*self.viz_width:, :] = one_hot.reshape((-1, 1))
         # print(self.inputs_as_array)
         # print(', '.join([str(x[0]) for x in self.inputs_as_array]))
 

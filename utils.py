@@ -313,13 +313,13 @@ class SMB(object):
         sub_y = (y - 32) // 16
 
         if sub_y not in range(13):
-            return 0x00
+            return StaticTileType.Empty.value
 
         addr = 0x500 + page*208 + sub_y*16 + sub_x
         if group_non_zero_tiles:
             if ram[addr] != 0:
-                StaticTileType.Fake.value
-                return 0x01  # Fake tile
+                return StaticTileType.Fake.value
+
         return ram[addr]
 
         

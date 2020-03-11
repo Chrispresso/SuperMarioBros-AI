@@ -387,7 +387,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.height = 700
 
         self.title = 'Super Mario Bros AI'
-        self.env = retro.make(game='SuperMarioBros-Nes', state='Level1-1')
         self.current_generation = 0
         # This is the generation that is actual 0. If you load individuals then you might end up starting at gen 12, in which case
         # gen 12 would be the true 0
@@ -447,7 +446,7 @@ class MainWindow(QtWidgets.QMainWindow):
             # Overwrite the config file IF one is not specified
             if not self.config:
                 try:
-                    self.config = Config(os.path.join(args.load_file, 'settings.config'))
+                    self.config = Config(os.path.join(args.replay_file, 'settings.config'))
                 except:
                     raise Exception(f'settings.config not found under {args.replay_file}')
 
@@ -483,6 +482,8 @@ class MainWindow(QtWidgets.QMainWindow):
         
         self.max_distance = 0  # Track farthest traveled in level
         self.max_fitness = 0.0
+        self.env = retro.make(game='SuperMarioBros-Nes', state=f'Level{self.config.Misc.level}')
+
 
         # Determine the size of the next generation based off selection type
         self._next_gen_size = None
