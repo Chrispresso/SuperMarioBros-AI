@@ -71,6 +71,10 @@ class Mario(Individual):
         self.x_dist = None
         self.game_score = None
         self.did_win = False
+        # This is mainly just to "see" Mario winning
+        self.allow_additional_time  = self.config.Misc.allow_additional_time_for_flagpole
+        self.additional_timesteps = 0
+        self.max_additional_timesteps = int(60*2.5)
 
         # Keys correspond with             B, NULL, SELECT, START, U, D, L, R, A
         # index                            0  1     2       3      4  5  6  7  8
@@ -101,15 +105,8 @@ class Mario(Individual):
 
     def set_input_as_array(self, ram, tiles) -> None:
         mario_row, mario_col = SMB.get_mario_row_col(ram)
-        # print(f'u:{self.u}, d:{self.d}, l:{self.l}, r:{self.r}')
-        # print(mario_row, mario_col)
         arr = []
-        #@TODO: Where did I mess up the row/col
-        # for col in range(-self.l, self.r+1):
-        #     for row in range(-self.u, self.d+1):
-        # @TODO: Keep the bottom
-        # for row in range(-self.u, self.d+1):
-        #     for col in range(-self.l, self.r+1):
+        
         for row in range(self.start_row, self.start_row + self.viz_height):
             for col in range(mario_col, mario_col + self.viz_width):
                 try:
@@ -122,21 +119,11 @@ class Mario(Individual):
                     elif isinstance(t, EnemyType):
                         arr.append(-1)
                     else:
-                        raise Exception("wit") #@TODO?
+                        raise Exception("This should never happen")
                 except:
                     t = StaticTileType(0x00)
                     arr.append(0) # Empty
-                
-                # print('{:02} '.format(arr[-1]), end = '')
-            # print()
-        # print(arr)
-        
-        # print()
-        # print(ram)
-        # import sys
-        # sys.exit(-1)
-        # SMB.get_tiles(ram, q=False)
-        # Assign tile inputs
+
         self.inputs_as_array[:self.viz_height*self.viz_width, :] = np.array(arr).reshape((-1,1))
         if self.config.NeuralNetwork.encode_row:
             # Assign one-hot for mario row
@@ -146,9 +133,6 @@ class Mario(Individual):
             if row >= 0 and row < self.viz_height:
                 one_hot[row, 0] = 1
             self.inputs_as_array[self.viz_height*self.viz_width:, :] = one_hot.reshape((-1, 1))
-        # print(self.inputs_as_array)
-        # print(', '.join([str(x[0]) for x in self.inputs_as_array]))
-
 
     def update(self, ram, tiles, buttons, ouput_to_buttons_map) -> bool:
         """
@@ -169,8 +153,9 @@ class Mario(Individual):
                     name = 'Mario '
                     name += f'{self.name}' if self.name else ''
                     print(f'{name} won')
-                self.is_alive = False
-                return False
+                if not self.allow_additional_time:
+                    self.is_alive = False
+                    return False
             # If we made it further, reset stats
             if self.x_dist > self.farthest_x:
                 self.farthest_x = self.x_dist
@@ -179,15 +164,19 @@ class Mario(Individual):
                 self._frames_since_progress += 1
 
             #@TODO: set this as part of config
-            if self._frames_since_progress > 60*3:
+            if self.allow_additional_time and self.did_win:
+                self.additional_timesteps += 1
+            
+            if self.allow_additional_time and self.additional_timesteps > self.max_additional_timesteps:
                 self.is_alive = False
                 return False
-
-            # print(SMB.get_mario_location_in_level(ram).x)
-            
+            elif not self.did_win and self._frames_since_progress > 60*3:
+                self.is_alive = False
+                return False            
         else:
             return False
 
+        # Did you fly into a hole?
         if ram[0x0E] in (0x0B, 0x06) or ram[0xB5] == 2:
             self.is_alive = False
             return False

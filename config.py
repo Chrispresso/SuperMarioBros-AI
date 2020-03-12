@@ -57,7 +57,8 @@ _params = {
 
     # Misc Params
     'Misc': {
-        'level': str
+        'level': str,
+        'allow_additional_time_for_flagpole': bool
     }
 }
 
