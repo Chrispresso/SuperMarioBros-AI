@@ -1,6 +1,5 @@
 If you want to see my blog explaining how all of this works in great detail, go [here](https://chrispresso.github.io/AI_Learns_To_Play_SMB_Using_GA_And_NN).
 
-
 This contains information on the following:
 - [Installation Instructions](#installation-instructions)
 - [Command Line Options](#command-line-options)
@@ -21,6 +20,7 @@ This contains information on the following:
   - [Selection](#selection)
   - [Misc](#misc)
 - [Viewing Statistics](#viewing-statistics)
+- [Results](#results)
 
 ## Installation Instructions
 You will need Python 3.6 or newer.
@@ -158,3 +158,15 @@ plt.ylabel(ylabel)
 plt.xlabel('Generation')
 plt.show()
 ~~~
+
+## Results
+Different populations of Mario learned in different way and for different environments. Here are some of the things the AI was able to learn:
+
+Mario beating 1-1:
+![Mario Beating 1-1](/SMB_level1-1_gen_258_win.gif)
+
+Mario beating 4-1:
+![Mario Beating 4-1](/SMB_level4-1_gen_1378_win.gif)
+
+Mario learning to walljump:
+![Mario Learning to Walljump](/SMB_level4-1_walljump.gif)
