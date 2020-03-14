@@ -810,7 +810,7 @@ class MainWindow(QtWidgets.QMainWindow):
                     if self._current_individual >= len(args.replay_inds):
                         if args.debug:
                             print(f'Finished replaying {len(args.replay_inds)} best individuals')
-                            sys.exit()
+                        sys.exit()
 
                     txt = f"<font color='red'>{args.replay_inds[self._current_individual] + 1}</font>"
                     self.info_window.generation.setText(txt)

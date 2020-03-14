@@ -75,6 +75,7 @@ class Mario(Individual):
         self.allow_additional_time  = self.config.Misc.allow_additional_time_for_flagpole
         self.additional_timesteps = 0
         self.max_additional_timesteps = int(60*2.5)
+        self._printed = False
 
         # Keys correspond with             B, NULL, SELECT, START, U, D, L, R, A
         # index                            0  1     2       3      4  5  6  7  8
@@ -149,10 +150,11 @@ class Mario(Individual):
             # Sliding down flag pole
             if ram[0x001D] == 3:
                 self.did_win = True
-                if self.debug:
+                if not self._printed and self.debug:
                     name = 'Mario '
                     name += f'{self.name}' if self.name else ''
                     print(f'{name} won')
+                    self._printed = True
                 if not self.allow_additional_time:
                     self.is_alive = False
                     return False
@@ -163,7 +165,6 @@ class Mario(Individual):
             else:
                 self._frames_since_progress += 1
 
-            #@TODO: set this as part of config
             if self.allow_additional_time and self.did_win:
                 self.additional_timesteps += 1
             
