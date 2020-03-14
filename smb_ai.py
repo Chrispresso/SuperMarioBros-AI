@@ -70,8 +70,7 @@ class Visualizer(QtWidgets.QWidget):
         color = QColor(255, 0, 217)
         painter.setPen(QPen(color, 3.0, Qt.SolidLine))
         painter.setBrush(QBrush(Qt.NoBrush))
-        # painter.drawRect(x*self.tile_width + 5 + self.x_offset, y*self.tile_height + 5, width*self.tile_width, height*self.tile_height)
-        #@TODO: Maket this adjustable
+
         start_row, viz_width, viz_height = self.config.NeuralNetwork.input_dims
         painter.drawRect(x*self.tile_width + 5 + self.x_offset, start_row*self.tile_height + 5, viz_width*self.tile_width, viz_height*self.tile_height)
 
@@ -79,26 +78,6 @@ class Visualizer(QtWidgets.QWidget):
     def draw_tiles(self, painter: QPainter):
         if not self.tiles:
             return
-        # tiles = self.get_tiles()
-        # tiles = SMB.get_tiles(self.ram)
-        # enemies = SMB.get_enemy_locations(self.ram)
-        # mario_row, mario_col = SMB.get_mario_row_col(self.ram)
-        # tiles[(mario_row, mario_col)] = DynamicTileType(0xAA)
-        # print(self.ram[0x500:0x69f+1])
-        # print(SMB.get_tiles(self.ram))
-        # SMB.get_tiles(self.ram)
-        # print(SMB.get_tiles(self.ram))
-        # mario = SMB.get_mario_location_in_level(self.ram)
-        # x, y = mario.x, mario.y 
-        # page = (x // 256) % 2
-        # sub_page_x = (x % 256) // 16
-        # sub_page_y = (y - 32) // 16 
-        # mario_screen = SMB.get_mario_location_on_screen(self.ram)
-        # tiles_left = mario_screen.x // 16
-        # tiles_up = mario_screen.y // 16
-        # print('page: {}, subx: {}, suby: {}'.format(page, sub_page_x, sub_page_y))
-        # print('left: {}, above: {}'.format(tiles_left, tiles_up))
-        # assert tiles.shape == (13,16)
         for row in range(15):
             for col in range(16):
                 painter.setPen(QPen(Qt.black,  1, Qt.SolidLine))
@@ -141,8 +120,6 @@ class Visualizer(QtWidgets.QWidget):
     def _update(self):
         self.update()
 
-    
-    
 
 class GameWindow(QtWidgets.QWidget):
     def __init__(self, parent, size, config: Config):
@@ -168,11 +145,9 @@ class GameWindow(QtWidgets.QWidget):
     
                 width = self.screen.shape[0] * 3 
                 height = int(self.screen.shape[1] * 2)
-                # resized = original.resize((width, height))
                 resized = self.screen
                 original = QImage(self.screen, self.screen.shape[1], self.screen.shape[0], QImage.Format_RGB888)
                 # Create the image and label
-                # image = ImageQt(resized)
                 qimage = QImage(original)
                 # Center where the image will go
                 x = (self.screen.shape[0] - width) // 2
@@ -181,9 +156,7 @@ class GameWindow(QtWidgets.QWidget):
                 # Add image
                 pixmap = QPixmap(qimage)
                 pixmap = pixmap.scaled(width, height, Qt.KeepAspectRatio)
-                # print(pixmap.width(), pixmap.height())
                 self.img_label.setPixmap(pixmap)
-            # print('here')
         else:
             self.img_label.clear()
             # draw_border(painter, self.size)
@@ -374,8 +347,6 @@ class InformationWidget(QtWidgets.QWidget):
         return hbox
 
 
-
-
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self, config: Optional[Config] = None):
         super().__init__()
@@ -398,7 +369,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # Keys correspond with B, NULL, SELECT, START, U, D, L, R, A
         # index                0  1     2       3      4  5  6  7  8
         self.keys = np.array( [0, 0,    0,      0,     0, 0, 0, 0, 0], np.int8)
-        self.i = 1
+
         # I only allow U, D, L, R, A, B and those are the indices in which the output will be generated
         # We need a mapping from the output to the keys above
         self.ouput_to_keys_map = {
@@ -484,7 +455,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.max_fitness = 0.0
         self.env = retro.make(game='SuperMarioBros-Nes', state=f'Level{self.config.Misc.level}')
 
-
         # Determine the size of the next generation based off selection type
         self._next_gen_size = None
         if self.config.Selection.selection_type == 'plus':
@@ -511,7 +481,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
             self.show()
 
-
         if args.no_display:
             self._timer.start(1000 // 1000)
         else:
@@ -529,9 +498,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # # Reset environment and pass the screen to the GameWindow
         screen = self.env.reset()
         self.game_window.screen = screen
-        # self.game_window.update()
-
-
+ 
         self.viz = NeuralNetworkViz(self.centralWidget, self.mario, (1100-514, 700), self.config)
 
         self.viz_window = Visualizer(self.centralWidget, (1100-514, 700), self.config, self.viz)
@@ -539,34 +506,26 @@ class MainWindow(QtWidgets.QMainWindow):
         self.viz_window.setObjectName('viz_window')
         self.viz_window.ram = self.env.get_ram()
         
-        # self.width = 1100
-        # self.height = 700
         self.info_window = InformationWidget(self.centralWidget, (514, 700-480), self.config)
         self.info_window.setGeometry(QRect(1100-514, 480, 514, 700-480))
 
     def keyPressEvent(self, event):
-        k = event.key()
-        m = {
-            Qt.Key_Right : 7,
-            Qt.Key_C : 8,
-            Qt.Key_X: 0,
-            Qt.Key_Left: 6,
-            Qt.Key_Down: 5
-        }
-        if k in m:
-            self.keys[m[k]] = 1
-        if k == Qt.Key_D:
-            tiles = SMB.get_tiles(self.env.get_ram(), False)
+        # k = event.key()
+        # m = {
+        #     Qt.Key_Right : 7,
+        #     Qt.Key_C : 8,
+        #     Qt.Key_X: 0,
+        #     Qt.Key_Left: 6,
+        #     Qt.Key_Down: 5
+        # }
+        # if k in m:
+        #     self.keys[m[k]] = 1
+        # if k == Qt.Key_D:
+        #     tiles = SMB.get_tiles(self.env.get_ram(), False)
         modifier = int(event.modifiers())
         if modifier == Qt.CTRL:
             if k == Qt.Key_V:
                 self._should_display = not self._should_display
-            # print(SMB.get_mario_location_in_level(self.env.get_ram()))
-            # for row in range(15):
-            #     for col in range(16):
-            #         loc = (row, col)
-            #         print('{:02X}'.format(tiles[loc].value), end=' ')
-            #     print()
 
     def keyReleaseEvent(self, event):
         k = event.key()
@@ -741,10 +700,6 @@ class MainWindow(QtWidgets.QMainWindow):
         This is the main update method which is called based on the FPS timer.
         Genetic Algorithm updates, window updates, etc. are performed here.
         """
-        self.i += 1  #@TODO: remove
-        # right =   np.array([0,0,0,0,0,0,0,1,0], np.int8)
-        # nothing = np.array([0,0,0,0,0,0,0,0,0], np.int8)
-        # ret = self.env.step(self.keys)  #@TODO: Could allow human to play
         ret = self.env.step(self.mario.buttons_to_press)
 
         if not args.no_display:
@@ -757,9 +712,6 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.game_window._should_update = False
                 self.info_window.hide()
             self.game_window._update()
-
-        # if self.i % 5 != 0:
-        #     return
 
         ram = self.env.get_ram()
         tiles = SMB.get_tiles(ram)  # Grab tiles on the screen
@@ -777,9 +729,6 @@ class MainWindow(QtWidgets.QMainWindow):
             else:
                 self.viz_window._should_update = False
             self.viz_window._update()
-
-
-
     
         if self.mario.is_alive:
             # New farthest distance?
@@ -798,8 +747,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 max_fitness = '{:.2f}'.format(self.max_fitness)
                 if not args.no_display:
                     self.info_window.best_fitness.setText(max_fitness)
-
-
+            # Next individual
             self._current_individual += 1
 
             # Are we replaying from a file?
@@ -827,7 +775,6 @@ class MainWindow(QtWidgets.QMainWindow):
                     if not args.no_display:
                         self.info_window.current_individual.setText('{}/{}'.format(self._current_individual + 1, current_pop))
             
-
             if args.no_display:
                 self.env.reset()
             else:

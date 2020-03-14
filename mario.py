@@ -42,10 +42,6 @@ class Mario(Individual):
         self.u, self.d, self.l, self.r = u, d, l, r
 
         self.start_row, self.viz_width, self.viz_height = self.config.NeuralNetwork.input_dims
-        ud = int(bool(u and d))  # If both u and d directions are non-zero, there is an additional square (Mario)
-        lr = int(bool(l and r))  # If both l and r directions are non-zero, there is an additional square (Mario)
-        num_inputs = (u + d + 1) * (l + r + 1)  #@TODO: is this correct?
-        # viz_width * viz_height for the tiles + viz_height as one-hot encoded mario row
 
         if self.config.NeuralNetwork.encode_row:
             num_inputs = self.viz_width * self.viz_height + self.viz_height
@@ -129,7 +125,6 @@ class Mario(Individual):
         if self.config.NeuralNetwork.encode_row:
             # Assign one-hot for mario row
             row = mario_row - self.start_row
-            # print('row', row)
             one_hot = np.zeros((self.viz_height, 1))
             if row >= 0 and row < self.viz_height:
                 one_hot[row, 0] = 1
@@ -186,7 +181,7 @@ class Mario(Individual):
 
         # Calculate the output
         output = self.network.feed_forward(self.inputs_as_array)
-        threshold = np.where(output > 0.5)[0]  # @TODO: Maybe make threshold part of config?
+        threshold = np.where(output > 0.5)[0]
         self.buttons_to_press.fill(0)  # Clear
 
         # Set buttons
@@ -244,8 +239,6 @@ def load_mario(population_folder: str, individual_name: str, config: Optional[Co
         
     mario = Mario(config, chromosome=chromosome)
     return mario
-
-    
 
 def _calc_stats(data: List[Union[int, float]]) -> Tuple[float, float, float, float, float]:
     mean = np.mean(data)
@@ -350,12 +343,11 @@ def load_stats(path_to_stats: str, normalize: Optional[bool] = False):
     return data
 
 def get_num_inputs(config: Config) -> int:
-    u, d, l, r = config.NeuralNetwork.inputs_size
-    ud = int(bool(u and d))  # If both u and d directions are non-zero, there is an additional square (Mario)
-    lr = int(bool(l and r))  # If both l and r directions are non-zero, there is an additional square (Mario)
-    num_inputs = (u + d + 1) * (l + r + 1)  #@TODO: is this correct
     _, viz_width, viz_height = config.NeuralNetwork.input_dims
-    num_inputs = viz_height*viz_width + viz_height
+    if config.NeuralNetwork.encode_row:
+        num_inputs = viz_width * viz_height + viz_height
+    else:
+        num_inputs = viz_width * viz_height
     return num_inputs
 
 def get_num_trainable_parameters(config: Config) -> int:
@@ -371,4 +363,3 @@ def get_num_trainable_parameters(config: Config) -> int:
         num_params += L*L_next + L_next
 
     return num_params
-

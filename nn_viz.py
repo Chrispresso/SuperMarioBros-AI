@@ -17,7 +17,6 @@ class NeuralNetworkViz(QtWidgets.QWidget):
         self.vertical_distance_between_nodes = 10
         l = self.config.NeuralNetwork.hidden_layer_architecture + [6]
         self.num_neurons_in_largest_layer = max(l[1:])
-        # self.setFixedSize(600,800)
         self.neuron_locations = {}
         self.tile_size = self.config.Graphics.tile_size
         self.neuron_radius = self.config.Graphics.neuron_radius
@@ -25,7 +24,6 @@ class NeuralNetworkViz(QtWidgets.QWidget):
         # Set all neuron locations for layer 0 (Input) to be at the same point.
         # The reason I do this is because the number of inputs can easily become too many to show on the screen.
         # For this reason it is easier to not explicitly show the input nodes and rather show the bounding box of the rectangle.
-        #@TODO: Make the values of 150, 5, 16, 15 come from the parent
         self.x_offset = 150 + 16//2*self.tile_size[0] + 5
         self.y_offset = 5 + 15*self.tile_size[1] + 5
         for nid in range(l[0]):
@@ -33,18 +31,7 @@ class NeuralNetworkViz(QtWidgets.QWidget):
             
             self.neuron_locations[t] = (self.x_offset, self.y_offset)
 
-        self.i = 0
         self.show()
-
-
-    # def paintEvent(self, event: QtGui.QPaintEvent) -> None:
-    #     painter = QtGui.QPainter()
-    #     painter.begin(self)
-
-    #     self.show_network(painter)
-        
-    #     painter.end()
-
 
     def show_network(self, painter: QtGui.QPainter):
         painter.setRenderHints(QtGui.QPainter.Antialiasing)
@@ -61,7 +48,7 @@ class NeuralNetworkViz(QtWidgets.QWidget):
         v_offset = self.y_offset + 50
         inputs = self.mario.inputs_as_array
 
-        out = self.mario.network.feed_forward(inputs)  # @TODO: shouldnt need this
+        out = self.mario.network.feed_forward(inputs)
 
         active_outputs = np.where(out > 0.5)[0]
         max_n = self.size[0] // (2* self.neuron_radius + horizontal_space)

@@ -47,7 +47,7 @@ class StaticTileType(Enum):
     Flagpole_Top =  0x24
     Flagpole = 0x25
     Coin_Block1 = 0xC0
-    Coin_Block2 = 0xC1  # @TODO I think one of the coin (?? block) is actually a mushroom
+    Coin_Block2 = 0xC1 
     Coin = 0xC2
     Breakable_Block = 0x51
 
