@@ -9,7 +9,6 @@ def simulated_binary_crossover(parent1: np.ndarray, parent2: np.ndarray, eta: fl
     For large values of eta there is a higher probability that offspring will be created near the parents.
     For small values of eta, offspring will be more distant from parents
     Equation 9.9, 9.10, 9.11
-    @TODO: Link equations
     """    
     # Calculate Gamma (Eq. 9.11)
     rand = np.random.random(parent1.shape)

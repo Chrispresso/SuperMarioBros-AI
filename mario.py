@@ -38,9 +38,6 @@ class Mario(Individual):
         self.hidden_activation = self.config.NeuralNetwork.hidden_node_activation
         self.output_activation = self.config.NeuralNetwork.output_node_activation
 
-        u, d, l, r = self.config.NeuralNetwork.inputs_size
-        self.u, self.d, self.l, self.r = u, d, l, r
-
         self.start_row, self.viz_width, self.viz_height = self.config.NeuralNetwork.input_dims
 
         if self.config.NeuralNetwork.encode_row:

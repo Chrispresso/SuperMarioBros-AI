@@ -19,7 +19,6 @@ _params = {
 
     # NeuralNetwork Params
     'NeuralNetwork': {
-        'inputs_size': (tuple, int),
         'input_dims': (tuple, int),
         'hidden_layer_architecture': (tuple, int),
         'hidden_node_activation': str,
@@ -108,7 +107,6 @@ class Config(object):
 
         self._verify_sections()
         self._create_dict_from_config()
-        # self._parse_references_if_needed()
         self._set_dict_types()
         dot_notation = DotNotation(self._config_dict)
         self.__dict__.update(dot_notation.__dict__)
@@ -157,16 +155,6 @@ class Config(object):
             # Make sure the section is allowed
             if section not in _params:
                 raise Exception('Section "{}" has no parameters allowed. Please remove this section and run again.'.format(section))
-
-    def _parse_references_if_needed(self) -> None:
-        for section in self._config_dict:
-            for k, v in self._config_dict[section].items():
-                # If it contains '.' and is not a number
-                if not self._is_number(v) and '.' in v:
-                    # Make sure it's not a function
-                    if _params[section][k] != type(lambda x: None):
-                        referenced_value = self._get_reference_from_dict(v)
-                        self._config_dict[section][k] = referenced_value
 
     def _get_reference_from_dict(self, reference: str) -> Any:
         path = reference.split('.')

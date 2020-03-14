@@ -35,7 +35,6 @@ def random_uniform_mutation(chromosome: np.ndarray, prob_mutation: float,
     If a gene is selected for mutation it will be assigned a value with uniform probability
     between [low, high).
     @Note [low, high) is defined for each gene to help get the full range of possible values
-    @TODO: Eq 11.4
     """
     assert type(low) == type(high), 'low and high must have the same type'
     mutation_array = np.random.random(chromosome.shape) < prob_mutation
@@ -49,7 +48,6 @@ def uniform_mutation_with_respect_to_best_individual(chromosome: np.ndarray, bes
     """
     Ranomly mutate each gene in an individual with probability, prob_mutation.
     If a gene is selected for mutation it will nudged towards the gene from the best individual.
-    @TODO: Eq 11.6
     """
     mutation_array = np.random.random(chromosome.shape) < prob_mutation
     uniform_mutation = np.random.uniform(size=chromosome.shape)
