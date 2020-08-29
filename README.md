@@ -1,4 +1,9 @@
+If you want to see a YouTube video describing this at a high level, and showcasing what was learned, take a look [here](https://www.youtube.com/watch?v=CI3FRsSAa_U).<br>
 If you want to see my blog explaining how all of this works in great detail, go [here](https://chrispresso.github.io/AI_Learns_To_Play_SMB_Using_GA_And_NN).
+
+<b>Update</b>:
+The AI has successfully completed 1-1, 2-1, 3-1, 4-1, 5-1, 6-1, and 7-1.
+It was also able to learn: flagpole glitch with an enemy, walljump, and a fast acceleration.
 
 This contains information on the following:
 - [Installation Instructions](#installation-instructions)
@@ -65,9 +70,9 @@ If you wish to know when populations are improving or when individuals have won,
 - `--debug`. When this option is present, certain information regarding generation, individuals who have won, new max distance, etc. will print to the command line.
 
 ## Running Examples
-I have left two folders for examples. One contains an individual capable of beating 1-1, the other contains an individual capable of beating 4-1. If you want to run any them to see how they perform, do:
+I have several folders for examples. If you want to run any them to see how they perform, do:
   - `python smb_ai.py --replay-file "Example world1-1" --replay-inds 1213,1214`. This will load `settings.config` from the `Example world1-1` folder and replay the best individual from generation 1213 and 1214. 
-  - `python smb_ai.py --replay-file "Example world4-1" --replay-inds 1377`. This will load `settings.config` from the `Example world4-1` folder and replay the best individual from generation 1377.
+  - `python smb_ai.py --replay-file "Example world4-1" --replay-inds 2259`. This will load `settings.config` from the `Example world4-1` folder and replay the best individual from generation 2259.
 
 ## Creating a New Population
 If you want to create a new population, it's pretty easy. Make sure that if you are using the default `settings.config` that you change `save_best_individual_from_generation` and `save_population_stats` to reflect where you want that information saved. Once you have the config file how you want, simply run `python smb_ai.py -c settings.config` with any additional command line options.
