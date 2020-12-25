@@ -166,7 +166,7 @@ class InformationWidget(QtWidgets.QWidget):
         self._init_window()
         # self.grid.setSpacing(20)
         self.setLayout(self.grid)
-        
+
 
     def _init_window(self) -> None:
         info_vbox = QVBoxLayout()
@@ -500,7 +500,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.info_window.setGeometry(QRect(1100-514, 480, 514, 700-480))
 
     def keyPressEvent(self, event):
-        # k = event.key()
+        k = event.key()
         # m = {
         #     Qt.Key_Right : 7,
         #     Qt.Key_C : 8,
