@@ -28,7 +28,7 @@ This contains information on the following:
 - [Results](#results)
 
 ## Installation Instructions
-You will need Python 3.6 or newer.
+You will need Python 3.6 or Python 3.7
 
 1. `cd /path/to/SuperMarioBros-AI`
 2. Run `pip install -r requirements.txt`
